@@ -1,5 +1,8 @@
 // theme.ts
 
+// Re-export from the new theme system for backward compatibility
+export * from './themes';
+
 // Helper function to add alpha to hex colors (optional but useful)
 export const addAlpha = (color: string, opacity: number): string => {
   // if already rgba, just return
@@ -18,6 +21,7 @@ export const THEME = {
   BACKGROUND_SECONDARY: '#E9ECEF', // Slightly darker than primary, for subtle card-in-card or icon BGs
   BACKGROUND_SURFACE: '#FFFFFF',   // For elements that sit on top of BACKGROUND_PRIMARY (your existing BACKGROUND_WHITE)
   BACKGROUND_WHITE: '#FFFFFF',     // Pure white, can be same as SURFACE or used specifically
+  BACKGROUND_BLACK: '#000000',     // Pure black for camera/dark screens
 
   // --- Text Colors ---
   TEXT_PRIMARY: '#2D3748',          // For main headlines and important text
@@ -26,6 +30,7 @@ export const THEME = {
   TEXT_ON_PRIMARY_BRAND: '#FFFFFF', // Text on Dark Blue
   TEXT_ON_ACCENT_COLOR: '#FFFFFF',  // Text on Teal (ensure contrast)
   TEXT_ON_DARK_SURFACE: '#FFFFFF',  // For text on dark custom backgrounds (if any)
+  TEXT_ON_DARK_BACKGROUND: '#FFFFFF', // Text on dark backgrounds (camera, etc.)
   TEXT_LINK: '#007AFF',            // Standard link color (Example, adjust as needed)
 
   // --- Border Colors ---

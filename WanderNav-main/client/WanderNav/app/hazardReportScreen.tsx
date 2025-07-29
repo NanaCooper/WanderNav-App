@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  Pressable, // Keep this
+  Pressable,
   Platform,
   ScrollView,
   TextInput,
@@ -14,26 +14,33 @@ import {
   Image,
   StatusBar,
   Alert,
-  StyleProp, // Import StyleProp
-  ViewStyle,  // Import ViewStyle
+  StyleProp,
+  ViewStyle,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { THEME } from '../constants/theme';
+import { addAlpha } from '../constants/themes';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../contexts/ThemeContext';
 
 // --- Import ImagePicker ---
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // --- Reusable Animated Pressable ---
 const PRESSED_SCALE_VALUE = 0.97;
 
 interface AnimatedPressableProps {
   onPress?: () => void;
-  style?: StyleProp<ViewStyle>; // For the Animated.View
-  pressableStyle?: StyleProp<ViewStyle>; // For the outer Pressable
+  style?: StyleProp<ViewStyle>;
+  pressableStyle?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
-  friction?: number; // Optional: if you want to override default
-  tension?: number;  // Optional: if you want to override default
+  friction?: number;
+  tension?: number;
 }
 
 const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
@@ -41,9 +48,10 @@ const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   style,
   pressableStyle,
   children,
-  friction = 7, // Default friction
-  tension = 60, // Default tension
+  friction = 7,
+  tension = 60,
 }) => {
+  const { theme } = useTheme();
   const scaleValue = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -69,8 +77,8 @@ const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
       onPressIn={onPress ? handlePressIn : undefined}
       onPressOut={onPress ? handlePressOut : undefined}
       onPress={onPress}
-      style={pressableStyle} // Now uses the destructured prop
-      android_ripple={{ color: (THEME.PRIMARY_BRAND_COLOR || '#000000') + '30', borderless: false }} // Added fallback for THEME color
+      style={pressableStyle}
+      android_ripple={{ color: addAlpha(theme.colors.PRIMARY_BRAND_COLOR, 0.1), borderless: false }}
     >
       <Animated.View style={[style, { transform: [{ scale: scaleValue }] }]}>
         {children}
@@ -78,7 +86,6 @@ const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
     </Pressable>
   );
 };
-
 
 // --- Reusable FadeInView ---
 interface FadeInViewProps {
@@ -93,30 +100,29 @@ const FadeInView: React.FC<FadeInViewProps> = ({
   style,
   children,
   delay = 0,
-  yOffset = 15, // This is the initial offset for the animation
+  yOffset = 15,
   duration = 350,
 }) => {
   const opacity = useRef(new Animated.Value(0)).current;
-  // Initialize translateY with the yOffset prop, so it starts from that offset
   const translateY = useRef(new Animated.Value(yOffset)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: duration, // Use prop
-        delay: delay,       // Use prop
+        duration: duration,
+        delay: delay,
         useNativeDriver: true,
       }),
       Animated.spring(translateY, {
-        toValue: 0, // Animate to its final position (0 offset)
+        toValue: 0,
         friction: 7,
         tension: 50,
-        delay: delay,       // Use prop
+        delay: delay,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [opacity, translateY, delay, duration]); // yOffset is for initial value, not animation trigger change here
+  }, [opacity, translateY, delay, duration]);
 
   return (
     <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
@@ -125,14 +131,13 @@ const FadeInView: React.FC<FadeInViewProps> = ({
   );
 };
 
-
 const HAZARD_CATEGORIES = [
-  { id: 'pothole', label: 'Pothole', icon: 'road-variant' as const },
-  { id: 'debris', label: 'Debris', icon: 'delete-sweep-outline' as const },
-  { id: 'accident', label: 'Accident', icon: 'car-crash' as const },
-  { id: 'construction', label: 'Construction', icon: 'sign-caution' as const },
-  { id: 'flood', label: 'Flooding', icon: 'water-alert-outline' as const },
-  { id: 'other', label: 'Other', icon: 'alert-circle-outline' as const },
+  { id: 'pothole', label: 'Pothole', icon: 'road-variant' as const, color: '#FF6B35' },
+  { id: 'debris', label: 'Debris', icon: 'delete-sweep-outline' as const, color: '#4ECDC4' },
+  { id: 'accident', label: 'Accident', icon: 'car-crash' as const, color: '#FF4757' },
+  { id: 'construction', label: 'Construction', icon: 'sign-caution' as const, color: '#FFA502' },
+  { id: 'flood', label: 'Flooding', icon: 'water-alert-outline' as const, color: '#3742FA' },
+  { id: 'other', label: 'Other', icon: 'alert-circle-outline' as const, color: '#2ED573' },
 ] as const;
 
 type HazardCategoryId = typeof HAZARD_CATEGORIES[number]['id'];
@@ -140,6 +145,7 @@ const ICON_SIZE_CATEGORY = 28;
 const ICON_SIZE_BUTTON = 22;
 
 const HazardReportScreen = () => {
+  const { theme } = useTheme();
   const router = useRouter();
   const [elementsVisible, setElementsVisible] = useState(false);
 
@@ -147,12 +153,397 @@ const HazardReportScreen = () => {
   const [selectedCategory, setSelectedCategory] = useState<HazardCategoryId | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [location, setLocation] = useState<{ latitude: number, longitude: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [locationName, setLocationName] = useState<string>('');
+
+  // Generate responsive styles with theme
+  const getStyles = () => StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: theme.colors.BACKGROUND_PRIMARY,
+    },
+    scrollContainer: {
+      paddingVertical: 20,
+      paddingHorizontal: 20,
+      paddingBottom: 100,
+    },
+    loadingOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: addAlpha(theme.colors.BACKGROUND_PRIMARY, 0.9),
+      zIndex: 1000,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingContainer: {
+      padding: 30,
+      borderRadius: 20,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: addAlpha(theme.colors.ACCENT_COLOR, 0.2),
+      backgroundColor: theme.colors.BACKGROUND_SURFACE,
+      shadowColor: theme.colors.SHADOW_COLOR,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+    loadingText: {
+      marginTop: 16,
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.colors.TEXT_PRIMARY,
+    },
+    loadingSubtext: {
+      marginTop: 8,
+      fontSize: 14,
+      color: theme.colors.TEXT_SECONDARY,
+      textAlign: 'center',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: addAlpha(theme.colors.BACKGROUND_PRIMARY, 0.5),
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    successModal: {
+      backgroundColor: theme.colors.BACKGROUND_SURFACE,
+      borderRadius: 24,
+      padding: 32,
+      alignItems: 'center',
+      width: '85%',
+      maxWidth: 400,
+      shadowColor: theme.colors.ACCENT_COLOR,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.3,
+      shadowRadius: 16,
+      elevation: 8,
+      borderWidth: 0.5,
+      borderColor: addAlpha(theme.colors.BORDER_COLOR_LIGHT, 0.2),
+    },
+    successIconContainer: {
+      marginBottom: 20,
+    },
+    successIconGradient: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    successTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: theme.colors.TEXT_PRIMARY,
+      marginBottom: 8,
+    },
+    successSubtitle: {
+      fontSize: 16,
+      color: theme.colors.TEXT_SECONDARY,
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    successDescription: {
+      fontSize: 14,
+      color: theme.colors.TEXT_TERTIARY,
+      textAlign: 'center',
+      lineHeight: 20,
+      marginBottom: 24,
+    },
+    successButton: {
+      borderRadius: 16,
+      shadowColor: theme.colors.ACCENT_COLOR,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    successButtonGradient: {
+      paddingVertical: 16,
+      paddingHorizontal: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+    },
+    successButtonText: {
+      color: theme.colors.WHITE,
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    headerSection: {
+      marginBottom: 30,
+    },
+    headerGradient: {
+      padding: 24,
+      borderRadius: 20,
+      alignItems: 'center',
+      shadowColor: theme.colors.ACCENT_COLOR,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: theme.colors.WHITE,
+      marginTop: 12,
+      marginBottom: 4,
+    },
+    headerSubtitle: {
+      fontSize: 14,
+      color: addAlpha(theme.colors.WHITE, 0.9),
+      textAlign: 'center',
+    },
+    formSection: {
+      marginBottom: 30,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.colors.TEXT_PRIMARY,
+      marginLeft: 8,
+    },
+    locationContainer: {
+      borderRadius: 16,
+      shadowColor: theme.colors.SHADOW_COLOR,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    locationGradient: {
+      padding: 24,
+      borderRadius: 16,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.BORDER_COLOR_LIGHT,
+    },
+    locationText: {
+      marginTop: 12,
+      fontSize: 16,
+      color: theme.colors.TEXT_PRIMARY,
+      textAlign: 'center',
+      fontWeight: '500',
+    },
+    locationSubtext: {
+      marginTop: 6,
+      fontSize: 12,
+      color: theme.colors.TEXT_TERTIARY,
+      textAlign: 'center',
+    },
+    categoryContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    categoryButton: {
+      width: '48%',
+      borderRadius: 16,
+      shadowColor: theme.colors.SHADOW_COLOR,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    categoryButtonGradient: {
+      padding: 20,
+      borderRadius: 16,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.BORDER_COLOR_LIGHT,
+      minHeight: 100,
+      justifyContent: 'center',
+    },
+    categoryButtonText: {
+      marginTop: 8,
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.colors.TEXT_PRIMARY,
+      textAlign: 'center',
+    },
+    categoryButtonTextSelected: {
+      color: theme.colors.WHITE,
+    },
+    inputContainer: {
+      borderRadius: 16,
+      shadowColor: theme.colors.SHADOW_COLOR,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    inputGradient: {
+      padding: 20,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.BORDER_COLOR_LIGHT,
+    },
+    textArea: {
+      fontSize: 16,
+      color: theme.colors.TEXT_PRIMARY,
+      minHeight: 120,
+      textAlignVertical: 'top',
+    },
+    addPhotoButton: {
+      borderRadius: 16,
+      shadowColor: theme.colors.SHADOW_COLOR,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    addPhotoGradient: {
+      padding: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: addAlpha(theme.colors.ACCENT_COLOR, 0.3),
+      borderStyle: 'dashed',
+    },
+    addPhotoText: {
+      marginTop: 12,
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.colors.ACCENT_COLOR,
+    },
+    addPhotoSubtext: {
+      marginTop: 4,
+      fontSize: 12,
+      color: theme.colors.TEXT_TERTIARY,
+      textAlign: 'center',
+    },
+    imagePreviewWrapper: {
+      position: 'relative',
+      alignItems: 'center',
+    },
+    imagePreview: {
+      width: '100%',
+      height: 200,
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: theme.colors.BORDER_COLOR_LIGHT,
+    },
+    removeImageButton: {
+      position: 'absolute',
+      top: -8,
+      right: 8,
+      zIndex: 1,
+    },
+    removeImageGradient: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: theme.colors.ERROR_COLOR,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    changePhotoButton: {
+      position: 'absolute',
+      bottom: 12,
+      zIndex: 1,
+    },
+    changePhotoGradient: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 20,
+      shadowColor: theme.colors.ACCENT_COLOR,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    changePhotoButtonText: {
+      color: theme.colors.WHITE,
+      fontSize: 14,
+      fontWeight: '600',
+      marginLeft: 6,
+    },
+    submitButtonContainer: {
+      marginTop: 20,
+      marginBottom: 40,
+    },
+    submitButton: {
+      borderRadius: 20,
+      shadowColor: theme.colors.ACCENT_COLOR,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    submitButtonGradient: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 18,
+      paddingHorizontal: 32,
+      borderRadius: 20,
+    },
+    submitButtonText: {
+      color: theme.colors.WHITE,
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginLeft: 8,
+    },
+  });
+
+  const styles = getStyles();
 
   const fetchLocation = async () => {
-    setTimeout(() => {
-      setLocation({ latitude: 37.78825, longitude: -122.4324 });
-      Alert.alert("Location Set", "Mock location has been set for this report.");
-    }, 1000);
+    setLoading(true);
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLoading(false);
+        Alert.alert('Permission Denied', 'Location permission is required to report hazards accurately.');
+        return;
+      }
+      
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      
+      // Get address from coordinates
+      try {
+        const addressResponse = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+        
+        if (addressResponse.length > 0) {
+          const address = addressResponse[0];
+          const addressString = [
+            address.street,
+            address.city,
+            address.region,
+            address.country
+          ].filter(Boolean).join(', ');
+          setLocationName(addressString);
+        }
+      } catch (error) {
+        console.log('Could not get address:', error);
+        setLocationName('Location captured');
+      }
+      
+      setLoading(false);
+      Alert.alert('Location Set', 'Your current location has been captured for this hazard report.');
+    } catch (e) {
+      setLoading(false);
+      Alert.alert('Location Error', 'Could not fetch your location. Please try again.');
+    }
   };
 
   useFocusEffect(
@@ -174,7 +565,7 @@ const HazardReportScreen = () => {
       "Choose an option for your hazard report photo:",
       [
         {
-          text: "Take Photo...",
+          text: "📷 Take Photo",
           onPress: async () => {
             const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
             if (cameraPermission.status !== ImagePicker.PermissionStatus.GRANTED) {
@@ -185,7 +576,7 @@ const HazardReportScreen = () => {
           },
         },
         {
-          text: "Choose from Library...",
+          text: "🖼️ Choose from Library",
           onPress: async () => {
             const mediaLibraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (mediaLibraryPermission.status !== ImagePicker.PermissionStatus.GRANTED) {
@@ -210,7 +601,7 @@ const HazardReportScreen = () => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [16, 9],
-        quality: 0.7,
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -228,7 +619,7 @@ const HazardReportScreen = () => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [16, 9],
-        quality: 0.7,
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -241,38 +632,148 @@ const HazardReportScreen = () => {
   };
 
   const removePhoto = () => {
-    setPhotoUri(null);
+    Alert.alert(
+      "Remove Photo",
+      "Are you sure you want to remove this photo?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => setPhotoUri(null),
+        },
+      ]
+    );
   };
 
   const handleSubmitReport = () => {
     if (!selectedCategory) {
-      Alert.alert('Missing Information', 'Please select a hazard category.');
+      Alert.alert('Missing Information', 'Please select a hazard category to continue.');
       return;
     }
     if (!description.trim()) {
-      Alert.alert('Missing Information', 'Please provide a description of the hazard.');
+      Alert.alert('Missing Information', 'Please provide a detailed description of the hazard.');
       return;
     }
+    if (!location) {
+      Alert.alert('Missing Information', 'Please capture your location to submit this report.');
+      return;
+    }
+    
+    setLoading(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      setLoading(false);
+      setShowSuccessModal(true);
+      
+      // Reset form
+      setDescription('');
+      setSelectedCategory(null);
+      setPhotoUri(null);
+      setLocation(null);
+      setLocationName('');
+    }, 2000);
+  };
 
-    console.log('Submitting Hazard Report:', { selectedCategory, description, photoUri, location });
-    Alert.alert('Report Submitted', 'Thank you for helping keep our roads safe!', [{ text: 'OK', onPress: () => router.back() }]);
+  const handleBackPress = () => {
+    if (description || selectedCategory || photoUri || location) {
+      Alert.alert(
+        "Discard Report",
+        "You have unsaved changes. Are you sure you want to leave?",
+        [
+          {
+            text: "Stay",
+            style: "cancel",
+          },
+          {
+            text: "Discard",
+            style: "destructive",
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    } else {
+      router.back();
+    }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: THEME.BACKGROUND_PRIMARY }}
+      style={{ flex: 1, backgroundColor: theme.colors.BACKGROUND_PRIMARY }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? (Dimensions.get('window').height > 800 ? 90 : 70) : 0}
     >
-      <StatusBar barStyle="dark-content" backgroundColor={THEME.BACKGROUND_PRIMARY} />
+      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.BACKGROUND_PRIMARY} />
       <Stack.Screen
         options={{
-          title: 'Report a Hazard',
-          headerStyle: { backgroundColor: THEME.BACKGROUND_SURFACE },
-          headerTitleStyle: { color: THEME.TEXT_PRIMARY, fontWeight: '600' },
-          headerTintColor: THEME.PRIMARY_BRAND_COLOR,
+          title: 'Report Hazard',
+          headerStyle: { backgroundColor: theme.colors.BACKGROUND_SURFACE },
+          headerTitleStyle: { color: theme.colors.TEXT_PRIMARY, fontWeight: '600' },
+          headerTintColor: theme.colors.PRIMARY_BRAND_COLOR,
+          headerLeft: () => (
+            <TouchableOpacity onPress={handleBackPress} style={{ marginLeft: 8 }}>
+              <Ionicons name="arrow-back" size={24} color={theme.colors.PRIMARY_BRAND_COLOR} />
+            </TouchableOpacity>
+          ),
         }}
       />
+
+      {/* Loading Spinner Overlay */}
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <LinearGradient
+            colors={[addAlpha(theme.colors.ACCENT_COLOR, 0.1), addAlpha(theme.colors.ACCENT_COLOR, 0.05)]}
+            style={styles.loadingContainer}
+          >
+            <ActivityIndicator size="large" color={theme.colors.ACCENT_COLOR} />
+            <Text style={styles.loadingText}>Processing...</Text>
+            <Text style={styles.loadingSubtext}>Please wait while we submit your report</Text>
+          </LinearGradient>
+        </View>
+      )}
+
+      {/* Success Modal */}
+      <Modal visible={showSuccessModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <LinearGradient
+            colors={[theme.colors.BACKGROUND_SURFACE, addAlpha(theme.colors.ACCENT_COLOR, 0.02)]}
+            style={styles.successModal}
+          >
+            <View style={styles.successIconContainer}>
+              <LinearGradient
+                colors={[theme.colors.ACCENT_COLOR, addAlpha(theme.colors.ACCENT_COLOR, 0.8)]}
+                style={styles.successIconGradient}
+              >
+                <Ionicons name="checkmark" size={40} color={theme.colors.WHITE} />
+              </LinearGradient>
+            </View>
+            <Text style={styles.successTitle}>Report Submitted!</Text>
+            <Text style={styles.successSubtitle}>Thank you for helping keep our roads safe!</Text>
+            <Text style={styles.successDescription}>
+              Your hazard report has been successfully submitted and will be reviewed by our team.
+            </Text>
+            <TouchableOpacity 
+              style={styles.successButton}
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.back();
+              }}
+            >
+              <LinearGradient
+                colors={[theme.colors.ACCENT_COLOR, addAlpha(theme.colors.ACCENT_COLOR, 0.8)]}
+                style={styles.successButtonGradient}
+              >
+                <Text style={styles.successButtonText}>Done</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      </Modal>
+
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.scrollContainer}
@@ -281,313 +782,184 @@ const HazardReportScreen = () => {
       >
         {elementsVisible && (
           <>
-            <FadeInView delay={100} yOffset={10} style={styles.formSection}>
-              <Text style={styles.label}>Location (Tap to Pinpoint)</Text>
-              <Pressable style={styles.mapPlaceholder} onPress={fetchLocation}>
-                <MaterialCommunityIcons name={location ? "map-marker-check-outline" : "map-marker-plus-outline"} size={50} color={location ? THEME.SUCCESS_COLOR : THEME.PRIMARY_BRAND_COLOR} />
-                <Text style={styles.mapPlaceholderText}>
-                  {location
-                    ? `Location Selected: ${location.latitude.toFixed(3)}, ${location.longitude.toFixed(3)}`
-                    : 'Tap to select location on map'}
-                </Text>
-                {location && <Text style={styles.mapPlaceholderSubtext}>(Tap again to re-select)</Text>}
-              </Pressable>
+            {/* Header Section */}
+            <FadeInView delay={100} yOffset={20} style={styles.headerSection}>
+              <LinearGradient
+                colors={[theme.colors.ACCENT_COLOR, addAlpha(theme.colors.ACCENT_COLOR, 0.8)]}
+                style={styles.headerGradient}
+              >
+                <MaterialCommunityIcons name="alert-decagram" size={40} color={theme.colors.WHITE} />
+                <Text style={styles.headerTitle}>Report a Hazard</Text>
+                <Text style={styles.headerSubtitle}>Help keep our roads safe by reporting hazards</Text>
+              </LinearGradient>
             </FadeInView>
 
-            <FadeInView delay={200} yOffset={10} style={styles.formSection}>
-              <Text style={styles.label}>Select Hazard Category</Text>
+            {/* Location Section */}
+            <FadeInView delay={200} yOffset={15} style={styles.formSection}>
+              <View style={styles.sectionHeader}>
+                <MaterialCommunityIcons name="map-marker" size={24} color={theme.colors.ACCENT_COLOR} />
+                <Text style={styles.sectionTitle}>Location</Text>
+              </View>
+              <TouchableOpacity style={styles.locationContainer} onPress={fetchLocation}>
+                <LinearGradient
+                  colors={location ? 
+                    [addAlpha(theme.colors.SUCCESS_COLOR, 0.1), addAlpha(theme.colors.SUCCESS_COLOR, 0.05)] : 
+                    [theme.colors.BACKGROUND_SURFACE, addAlpha(theme.colors.ACCENT_COLOR, 0.02)]
+                  }
+                  style={styles.locationGradient}
+                >
+                  <MaterialCommunityIcons 
+                    name={location ? "map-marker-check" : "map-marker-plus"} 
+                    size={50} 
+                    color={location ? theme.colors.SUCCESS_COLOR : theme.colors.ACCENT_COLOR} 
+                  />
+                  <Text style={styles.locationText}>
+                    {location
+                      ? locationName || `Location: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
+                      : 'Tap to capture current location'}
+                  </Text>
+                  {location && (
+                    <Text style={styles.locationSubtext}>Tap to re-capture location</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </FadeInView>
+
+            {/* Category Section */}
+            <FadeInView delay={300} yOffset={15} style={styles.formSection}>
+              <View style={styles.sectionHeader}>
+                <MaterialCommunityIcons name="tag-multiple" size={24} color={theme.colors.ACCENT_COLOR} />
+                <Text style={styles.sectionTitle}>Hazard Category</Text>
+              </View>
               <View style={styles.categoryContainer}>
                 {HAZARD_CATEGORIES.map((category) => (
                   <TouchableOpacity
                     key={category.id}
-                    style={[
-                      styles.categoryButton,
-                      selectedCategory === category.id && styles.categoryButtonSelected,
-                    ]}
+                    style={styles.categoryButton}
                     onPress={() => handleCategorySelect(category.id)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.8}
                   >
-                    <MaterialCommunityIcons
+                    <LinearGradient
+                      colors={selectedCategory === category.id ? 
+                        [category.color, addAlpha(category.color, 0.8)] : 
+                        [theme.colors.BACKGROUND_SURFACE, theme.colors.BACKGROUND_SURFACE]
+                      }
+                      style={styles.categoryButtonGradient}
+                    >
+                      <MaterialCommunityIcons
                         name={category.icon}
                         size={ICON_SIZE_CATEGORY}
-                        color={selectedCategory === category.id ? THEME.BACKGROUND_WHITE : THEME.PRIMARY_BRAND_COLOR}
-                    />
-                    <Text
-                      style={[
+                        color={selectedCategory === category.id ? theme.colors.WHITE : category.color}
+                      />
+                      <Text style={[
                         styles.categoryButtonText,
-                        selectedCategory === category.id && styles.categoryButtonTextSelected,
-                      ]}
-                    >
-                      {category.label}
-                    </Text>
+                        selectedCategory === category.id && styles.categoryButtonTextSelected
+                      ]}>
+                        {category.label}
+                      </Text>
+                    </LinearGradient>
                   </TouchableOpacity>
                 ))}
               </View>
             </FadeInView>
 
-            <FadeInView delay={300} yOffset={10} style={styles.formSection}>
-              <Text style={styles.label}>Description</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Provide details like size, specific location notes, potential danger, etc."
-                multiline
-                numberOfLines={5}
-                placeholderTextColor={THEME.TEXT_TERTIARY}
-                textAlignVertical="top"
-              />
+            {/* Description Section */}
+            <FadeInView delay={400} yOffset={15} style={styles.formSection}>
+              <View style={styles.sectionHeader}>
+                <MaterialCommunityIcons name="text-box-outline" size={24} color={theme.colors.ACCENT_COLOR} />
+                <Text style={styles.sectionTitle}>Description</Text>
+              </View>
+              <View style={styles.inputContainer}>
+                <LinearGradient
+                  colors={[theme.colors.BACKGROUND_SURFACE, addAlpha(theme.colors.ACCENT_COLOR, 0.02)]}
+                  style={styles.inputGradient}
+                >
+                  <TextInput
+                    style={styles.textArea}
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder="Provide detailed information about the hazard..."
+                    placeholderTextColor={theme.colors.TEXT_TERTIARY}
+                    multiline
+                    numberOfLines={6}
+                    textAlignVertical="top"
+                  />
+                </LinearGradient>
+              </View>
             </FadeInView>
 
-            <FadeInView delay={400} yOffset={10} style={styles.formSection}>
-              <Text style={styles.label}>Add Photo (Optional)</Text>
+            {/* Photo Section */}
+            <FadeInView delay={500} yOffset={15} style={styles.formSection}>
+              <View style={styles.sectionHeader}>
+                <MaterialCommunityIcons name="camera" size={24} color={theme.colors.ACCENT_COLOR} />
+                <Text style={styles.sectionTitle}>Photo (Optional)</Text>
+              </View>
               {!photoUri ? (
-                <TouchableOpacity style={styles.addPhotoButton} onPress={handleAddPhoto} activeOpacity={0.7}>
-                  <MaterialCommunityIcons name="camera-plus-outline" size={ICON_SIZE_BUTTON + 4} color={THEME.ACCENT_COLOR} />
-                  <Text style={styles.addPhotoButtonText}>Tap to add a photo</Text>
+                <TouchableOpacity style={styles.addPhotoButton} onPress={handleAddPhoto} activeOpacity={0.8}>
+                  <LinearGradient
+                    colors={[theme.colors.BACKGROUND_SURFACE, addAlpha(theme.colors.ACCENT_COLOR, 0.05)]}
+                    style={styles.addPhotoGradient}
+                  >
+                    <MaterialCommunityIcons name="camera-plus" size={40} color={theme.colors.ACCENT_COLOR} />
+                    <Text style={styles.addPhotoText}>Add Photo</Text>
+                    <Text style={styles.addPhotoSubtext}>Tap to take or select a photo</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.imagePreviewWrapper}>
                   <Image source={{ uri: photoUri }} style={styles.imagePreview} />
-                  <AnimatedPressable
+                  <TouchableOpacity 
+                    style={styles.removeImageButton}
                     onPress={removePhoto}
-                    style={styles.removeImageButton} // Style for the animated view itself
-                    pressableStyle={styles.removeImagePressable} // Style for the outer Pressable hit area
                   >
-                      <Ionicons name="close-circle" size={28} color={THEME.ERROR_COLOR} />
-                  </AnimatedPressable>
-                  <TouchableOpacity style={styles.changePhotoButton} onPress={handleAddPhoto} activeOpacity={0.7}>
-                      <MaterialCommunityIcons name="image-edit-outline" size={ICON_SIZE_BUTTON} color={THEME.BACKGROUND_WHITE} style={{marginRight: 6}}/>
-                      <Text style={styles.changePhotoButtonText}>Change Photo</Text>
+                    <LinearGradient
+                      colors={[theme.colors.ERROR_COLOR, addAlpha(theme.colors.ERROR_COLOR, 0.8)]}
+                      style={styles.removeImageGradient}
+                    >
+                      <Ionicons name="close" size={20} color={theme.colors.WHITE} />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.changePhotoButton}
+                    onPress={handleAddPhoto}
+                  >
+                    <LinearGradient
+                      colors={[theme.colors.ACCENT_COLOR, addAlpha(theme.colors.ACCENT_COLOR, 0.8)]}
+                      style={styles.changePhotoGradient}
+                    >
+                      <MaterialCommunityIcons name="image-edit" size={18} color={theme.colors.WHITE} />
+                      <Text style={styles.changePhotoButtonText}>Change</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
                 </View>
               )}
             </FadeInView>
 
-            <FadeInView delay={500} yOffset={10} style={styles.submitButtonContainer}>
-              <AnimatedPressable
+            {/* Submit Button */}
+            <View style={styles.submitButtonContainer}>
+              <TouchableOpacity 
+                style={styles.submitButton}
                 onPress={handleSubmitReport}
-                style={styles.submitButton} // Style for the animated view
-                // pressableStyle prop could be used if you need separate styling for the Pressable hit area itself
+                activeOpacity={0.8}
+                disabled={!selectedCategory || !description.trim() || !location}
               >
-                <MaterialCommunityIcons name="send-check-outline" size={ICON_SIZE_BUTTON} color={THEME.TEXT_ON_ACCENT_COLOR} />
-                <Text style={styles.submitButtonText}>Submit Report</Text>
-              </AnimatedPressable>
-            </FadeInView>
+                <LinearGradient
+                  colors={(!selectedCategory || !description.trim() || !location) ? 
+                    [theme.colors.TEXT_TERTIARY, theme.colors.TEXT_TERTIARY] : 
+                    [theme.colors.ACCENT_COLOR, addAlpha(theme.colors.ACCENT_COLOR, 0.8)]
+                  }
+                  style={styles.submitButtonGradient}
+                >
+                  <MaterialCommunityIcons name="send" size={24} color={theme.colors.WHITE} />
+                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  scrollContainer: {
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-    paddingBottom: 60,
-  },
-  formSection: {
-    marginBottom: 35,
-  },
-  label: {
-    fontSize: 18,
-    color: THEME.TEXT_PRIMARY,
-    marginBottom: 16,
-    fontWeight: '600',
-    paddingLeft: 5,
-  },
-  mapPlaceholder: {
-    height: 170,
-    backgroundColor: THEME.BACKGROUND_SURFACE,
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: THEME.BORDER_COLOR,
-    padding: 20,
-    shadowColor: THEME.SHADOW_COLOR,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  mapPlaceholderText: {
-    marginTop: 12,
-    color: THEME.TEXT_SECONDARY,
-    fontSize: 16,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  mapPlaceholderSubtext: {
-    marginTop: 6,
-    color: THEME.TEXT_TERTIARY,
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  categoryContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: 12,
-    rowGap: 15,
-  },
-  categoryButton: {
-    backgroundColor: THEME.BACKGROUND_SURFACE,
-    paddingVertical: 18,
-    paddingHorizontal: 10,
-    borderRadius: 25,
-    borderWidth: 1.5,
-    borderColor: THEME.PRIMARY_BRAND_COLOR_LIGHTER || THEME.BORDER_COLOR,
-    alignItems: 'center',
-    width: '30.5%',
-    shadowColor: THEME.SHADOW_COLOR,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
-    minHeight: 100,
-    justifyContent: 'center',
-  },
-  categoryButtonSelected: {
-    backgroundColor: THEME.PRIMARY_BRAND_COLOR,
-    borderColor: THEME.PRIMARY_BRAND_COLOR,
-    elevation: 5,
-    shadowOpacity: 0.2,
-  },
-  categoryButtonText: {
-    marginTop: 10,
-    fontSize: 12.5,
-    color: THEME.PRIMARY_BRAND_COLOR,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  categoryButtonTextSelected: {
-    color: THEME.BACKGROUND_WHITE,
-  },
-  input: {
-    backgroundColor: THEME.BACKGROUND_SURFACE,
-    borderRadius: 25,
-    paddingHorizontal: 22,
-    paddingVertical: Platform.OS === 'ios' ? 18 : 16,
-    fontSize: 16,
-    color: THEME.TEXT_PRIMARY,
-    borderWidth: 1,
-    borderColor: THEME.BORDER_COLOR,
-    shadowColor: THEME.SHADOW_COLOR,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  textArea: {
-    minHeight: 140,
-    textAlignVertical: 'top',
-    borderRadius: 25,
-    paddingTop: 18,
-  },
-  addPhotoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME.BACKGROUND_SURFACE,
-    paddingVertical: 20,
-    paddingHorizontal: 25,
-    borderRadius: 30,
-    borderWidth: 1.5,
-    borderColor: THEME.ACCENT_COLOR_LIGHTER || THEME.BORDER_COLOR,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    shadowColor: THEME.SHADOW_COLOR,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  addPhotoButtonText: {
-    marginLeft: 12,
-    fontSize: 16,
-    color: THEME.ACCENT_COLOR,
-    fontWeight: '600',
-  },
-  imagePreviewWrapper: {
-    alignItems: 'center',
-    marginTop: 15,
-    position: 'relative',
-  },
-  imagePreview: {
-    width: '90%',
-    aspectRatio: 16/10,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: THEME.BORDER_COLOR_LIGHT || THEME.BORDER_COLOR,
-    backgroundColor: THEME.BACKGROUND_SECONDARY,
-  },
-  removeImagePressable: { // This style is for the Pressable component itself (hit area, positioning)
-    position: 'absolute',
-    top: -8,
-    right: -2, // Adjust as needed for visual alignment with the button style
-    zIndex: 1,
-    // Add padding if you want the touch area to be larger than the visible button
-    // padding: 5,
-  },
-  removeImageButton: { // This style is for the Animated.View (visual appearance of the button)
-    backgroundColor: THEME.BACKGROUND_SURFACE_OPACITY_HEAVY || 'rgba(255,255,255,0.8)',
-    borderRadius: 18, // Make it a circle or rounded square based on content
-    padding: 7,       // Adjust padding to make it look good around the icon
-    elevation: 5,
-    shadowColor: THEME.SHADOW_COLOR,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    // Ensure it aligns with the icon if needed, e.g., by making it a square
-    // width: 32, height: 32, alignItems: 'center', justifyContent: 'center'
-  },
-  changePhotoButton: {
-    position: 'absolute',
-    bottom: 15,
-    alignSelf: 'center',
-    backgroundColor: THEME.PRIMARY_BRAND_COLOR_OPACITY_HIGH || (THEME.PRIMARY_BRAND_COLOR + 'E9'),
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    flexDirection: 'row',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: THEME.SHADOW_COLOR,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-  },
-  changePhotoButtonText: {
-    color: THEME.TEXT_ON_PRIMARY_BRAND,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  submitButtonContainer: {
-    marginTop: 25,
-    marginBottom: Platform.OS === 'ios' ? 25 : 35,
-  },
-  submitButton: { // This style is for the Animated.View
-    flexDirection: 'row',
-    backgroundColor: THEME.ACCENT_COLOR,
-    paddingVertical: 20,
-    borderRadius: 35,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: THEME.ACCENT_COLOR,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  submitButtonText: {
-    color: THEME.TEXT_ON_ACCENT_COLOR,
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 12,
-  },
-});
 
 export default HazardReportScreen;

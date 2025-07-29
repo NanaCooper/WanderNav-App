@@ -20,33 +20,18 @@ import MapView, { PROVIDER_GOOGLE, Region } from 'react-native-maps';
 // Import Stack from expo-router
 import { useRouter, useFocusEffect, Stack } from 'expo-router'; // <--- MODIFIED
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import Voice, {
-  SpeechErrorEvent,
-  SpeechResultsEvent,
-  SpeechStartEvent,
-  SpeechEndEvent,
-} from '@react-native-voice/voice';
+// import Voice, {
+//   SpeechErrorEvent,
+//   SpeechResultsEvent,
+//   SpeechStartEvent,
+//   SpeechEndEvent,
+// } from '@react-native-voice/voice'; // Temporarily disabled due to compatibility issues
 import { Audio } from 'expo-av';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
-
-// --- THEME and Constants ---
-// ... (your existing theme and constants code remains unchanged)
-const THEME = {
-  PRIMARY_BRAND_COLOR: '#3498DB',
-  ACCENT_COLOR: '#2ECC71',
-  BACKGROUND_LIGHT: '#ECF0F1',
-  BACKGROUND_WHITE: '#FFFFFF',
-  TEXT_PRIMARY: '#2C3E50',
-  TEXT_SECONDARY: '#7F8C8D',
-  TEXT_ON_PRIMARY_BRAND: '#FFFFFF',
-  BORDER_COLOR: '#BDC3C7',
-  SHADOW_COLOR: 'rgba(44, 62, 80, 0.15)',
-  MAP_CONTROL_BACKGROUND: 'rgba(255, 255, 255, 0.98)',
-  SUCCESS_COLOR: '#2ECC71',
-  ERROR_COLOR: '#E74C3C',
-  TEXT_PLACEHOLDER: '#95A5A6',
-};
+import { useTheme } from '../contexts/ThemeContext';
+import { addAlpha } from '../constants/theme';
+import { logDebug } from '../utils/logger';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ASPECT_RATIO = SCREEN_WIDTH / SCREEN_HEIGHT;
@@ -121,6 +106,7 @@ const FadeInView: React.FC<FadeInViewProps> = ({ children, duration = 400, delay
 
 
 const HomeScreen: React.FC = () => {
+  const { theme } = useTheme();
   const router = useRouter();
   const mapRef = useRef<MapView>(null);
 
@@ -137,6 +123,250 @@ const HomeScreen: React.FC = () => {
 
   const voiceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Generate styles with theme
+  const getStyles = () => StyleSheet.create({
+    container: { 
+      flex: 1,
+      backgroundColor: theme.colors.BACKGROUND_PRIMARY,
+    },
+    map: { 
+      ...StyleSheet.absoluteFillObject,
+    },
+    loadingOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 20,
+    },
+    loadingText: {
+      marginTop: 10,
+      fontSize: 16,
+      fontWeight: '500',
+      color: theme.colors.TEXT_PRIMARY,
+    },
+    searchAreaWrapper: { 
+      position: 'absolute', 
+      top: (StatusBar.currentHeight || (Platform.OS === 'ios' ? 44 : 24)) + 15, 
+      left: 15, 
+      right: 15, 
+      zIndex: 10, 
+      alignItems: 'center', 
+    },
+    searchBarContainer: { 
+      backgroundColor: theme.colors.BACKGROUND_SURFACE, 
+      borderRadius: 28, 
+      paddingVertical: Platform.OS === 'ios' ? 14 : 12, 
+      paddingHorizontal: 18, 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      width: '100%', 
+      shadowColor: theme.colors.SHADOW_COLOR, 
+      shadowOffset: { width: 0, height: 5 }, 
+      shadowOpacity: 1, 
+      shadowRadius: 12, 
+      elevation: 8, 
+    },
+    searchIcon: { 
+      marginRight: 12, 
+    },
+    searchPlaceholderText: { 
+      flex: 1, 
+      fontSize: 16, 
+      color: theme.colors.TEXT_TERTIARY, 
+      marginRight: 8, 
+    },
+    clearSearchButton: { 
+      padding: 6, 
+    },
+    voiceSearchButton: { 
+      padding: 6, 
+    },
+    voiceStatusContainer: { 
+      marginTop: 10, 
+      paddingHorizontal: 15, 
+      paddingVertical: 8, 
+      backgroundColor: addAlpha(theme.colors.BACKGROUND_SECONDARY, 0.8), 
+      borderRadius: 15, 
+      alignSelf: 'center', 
+    },
+    voiceErrorText: { 
+      color: theme.colors.ERROR_COLOR, 
+      fontSize: 13, 
+      textAlign: 'center', 
+      fontWeight: '500', 
+    },
+    rightControlsContainer: { 
+      position: 'absolute', 
+      top: (StatusBar.currentHeight || (Platform.OS === 'ios' ? 44 : 24)) + 15 + 65 + 20, 
+      right: 15, 
+      alignItems: 'center', 
+      zIndex: 10, 
+    },
+    controlButtonWrapper: { 
+      marginBottom: 15, 
+    },
+    controlButton: { 
+      backgroundColor: theme.colors.BACKGROUND_SURFACE, 
+      width: 52, 
+      height: 52, 
+      borderRadius: 26, 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      shadowColor: theme.colors.SHADOW_COLOR, 
+      shadowOffset: { width: 0, height: 3 }, 
+      shadowOpacity: 1, 
+      shadowRadius: 6, 
+      elevation: 6, 
+    },
+    bottomNavWrapper: { 
+      position: 'absolute', 
+      bottom: 0, 
+      left: 0, 
+      right: 0, 
+      zIndex: 10, 
+    },
+    bottomNav: { 
+      flexDirection: 'row', 
+      backgroundColor: theme.colors.BACKGROUND_SURFACE, 
+      borderTopLeftRadius: 25, 
+      borderTopRightRadius: 25, 
+      paddingTop: 10, 
+      paddingBottom: Platform.OS === 'ios' ? 30 : 10, 
+      minHeight: Platform.OS === 'ios' ? 85 : 65, 
+      shadowColor: theme.colors.SHADOW_COLOR, 
+      shadowOffset: { width: 0, height: -5 }, 
+      shadowOpacity: 0.1, 
+      shadowRadius: 10, 
+      elevation: 10, 
+      alignItems: 'flex-start', 
+    },
+    bottomNavButtonContainer: { 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      flex: 1 
+    },
+    bottomNavButton: { 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      paddingVertical: 8, 
+      paddingHorizontal: 5, 
+      borderRadius: 18, 
+      width: '80%', 
+      maxWidth: 100, 
+    },
+    bottomNavButtonActive: { 
+      backgroundColor: addAlpha(theme.colors.ACCENT_COLOR, 0.2), 
+    },
+    bottomNavButtonText: { 
+      fontSize: 11, 
+      color: theme.colors.TEXT_SECONDARY, 
+      marginTop: 4, 
+      fontWeight: '500', 
+    },
+    bottomNavButtonTextActive: { 
+      color: theme.colors.ACCENT_COLOR, 
+      fontWeight: '700', 
+    },
+    fabHazard: {
+      position: 'absolute',
+      bottom: 100,
+      right: 24,
+      backgroundColor: theme.colors.ERROR_COLOR,
+      borderRadius: 32,
+      width: 56,
+      height: 56,
+      alignItems: 'center',
+      justifyContent: 'center',
+      elevation: 6,
+      shadowColor: theme.colors.ERROR_COLOR,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.18,
+      shadowRadius: 6,
+    },
+    greetingWrapper: {
+      position: 'absolute',
+      top: (StatusBar.currentHeight || (Platform.OS === 'ios' ? 44 : 24)) + 15 - 60,
+      left: 25,
+      zIndex: 20,
+    },
+    greetingText: {
+      fontSize: 16,
+      color: theme.colors.TEXT_SECONDARY,
+      fontWeight: '500',
+    },
+    greetingName: {
+      fontSize: 22,
+      color: theme.colors.ACCENT_COLOR,
+      fontWeight: '700',
+      marginTop: 2,
+    },
+    hazardCardWrapper: {
+      position: 'absolute',
+      top: (StatusBar.currentHeight || (Platform.OS === 'ios' ? 44 : 24)) + 80,
+      left: 15,
+      right: 15,
+      zIndex: 15,
+    },
+    hazardCard: {
+      backgroundColor: theme.colors.BACKGROUND_SURFACE,
+      borderRadius: 18,
+      padding: 18,
+      shadowColor: theme.colors.ERROR_COLOR,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    hazardCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    hazardCardTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: theme.colors.ERROR_COLOR,
+    },
+    hazardReportBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.ERROR_COLOR,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      marginLeft: 10,
+    },
+    hazardReportBtnText: {
+      color: theme.colors.WHITE,
+      fontWeight: '600',
+      marginLeft: 6,
+      fontSize: 14,
+    },
+    hazardCardEmpty: {
+      color: theme.colors.TEXT_SECONDARY,
+      fontSize: 14,
+      textAlign: 'center',
+      marginTop: 10,
+    },
+    hazardCardItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    hazardCardItemText: {
+      flex: 1,
+      fontSize: 14,
+      color: theme.colors.TEXT_PRIMARY,
+    },
+    hazardCardItemDate: {
+      fontSize: 12,
+      color: theme.colors.TEXT_SECONDARY,
+      marginLeft: 8,
+    },
+  });
+
+  const styles = getStyles();
 
   // ... (all your existing functions: clearVoiceErrorTimeout, setAndClearVoiceError, onSpeechStart, etc. remain unchanged)
   const clearVoiceErrorTimeout = useCallback(() => {
@@ -215,8 +445,8 @@ const HomeScreen: React.FC = () => {
         mapRef.current.animateToRegion(newRegion, 1000);
         setMapRegion(newRegion);
       } else {
-        if (!isMapReady && isInitialLoad) console.log("Map not ready yet for animation during initial load.");
-        else if (!mapRef.current && isInitialLoad) console.log("Map ref not available yet during initial load.");
+            if (!isMapReady && isInitialLoad) logDebug("Map not ready yet for animation during initial load.");
+    else if (!mapRef.current && isInitialLoad) logDebug("Map ref not available yet during initial load.");
         else throw new Error("Failed to get location coordinates or map not ready.");
       }
     } catch (error: any) {
@@ -273,17 +503,17 @@ const HomeScreen: React.FC = () => {
       }
   }, []);
 
-  useEffect(() => {
-    Voice.onSpeechStart = onSpeechStart;
-    Voice.onSpeechEnd = onSpeechEnd;
-    Voice.onSpeechError = onSpeechError;
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechPartialResults = onSpeechPartialResults;
-    return () => {
-        Voice.destroy?.().then(Voice.removeAllListeners).catch(err => console.error("Error destroying voice listeners:", err));
-        clearVoiceErrorTimeout();
-    };
-  }, [onSpeechStart, onSpeechEnd, onSpeechError, onSpeechResults, onSpeechPartialResults, clearVoiceErrorTimeout]);
+  // useEffect(() => {
+  //   Voice.onSpeechStart = onSpeechStart;
+  //   Voice.onSpeechEnd = onSpeechEnd;
+  //   Voice.onSpeechError = onSpeechError;
+  //   Voice.onSpeechResults = onSpeechResults;
+  //   Voice.onSpeechPartialResults = onSpeechPartialResults;
+  //   return () => {
+  //       Voice.destroy?.().then(Voice.removeAllListeners).catch(err => console.error("Error destroying voice listeners:", err));
+  //       clearVoiceErrorTimeout();
+  //   };
+  // }, [onSpeechStart, onSpeechEnd, onSpeechError, onSpeechResults, onSpeechPartialResults, clearVoiceErrorTimeout]);
 
   useFocusEffect(
     useCallback(() => {
@@ -301,7 +531,7 @@ const HomeScreen: React.FC = () => {
 
       return () => {
         setElementsVisible(false);
-        if (isListening) Voice.stop?.().catch(err => console.error("Error stopping voice on blur:", err));
+        // if (isListening) Voice.stop?.().catch(err => console.error("Error stopping voice on blur:", err));
         clearVoiceErrorTimeout();
       };
     }, [isMapReady, hasVoicePermission, fetchAndCenterMapOnUserLocation, isListening, clearVoiceErrorTimeout])
@@ -331,32 +561,36 @@ const HomeScreen: React.FC = () => {
   }, [hasVoicePermission, setAndClearVoiceError]);
 
   const startListening = useCallback(async () => {
-    if (isListening) return;
-    const hasPermission = await requestVoicePermissionAndStart();
-    if (!hasPermission) return;
+    // Temporarily disabled voice functionality
+            logDebug("Voice search temporarily disabled");
+    // if (isListening) return;
+    // const hasPermission = await requestVoicePermissionAndStart();
+    // if (!hasPermission) return;
 
-    setVoiceError(null);
-    setSearchText('');
-    try {
-      await Voice.start('en-US');
-      setIsListening(true);
-    } catch (e) {
-      console.error("Voice start error:", e);
-      setAndClearVoiceError("Could not start voice recognition.");
-      setIsListening(false);
-    }
+    // setVoiceError(null);
+    // setSearchText('');
+    // try {
+    //   await Voice.start('en-US');
+    //   setIsListening(true);
+    // } catch (e) {
+    //   console.error("Voice start error:", e);
+    //   setAndClearVoiceError("Could not start voice recognition.");
+    //   setIsListening(false);
+    // }
   }, [isListening, requestVoicePermissionAndStart, setAndClearVoiceError]);
 
   const stopListeningUserInitiated = useCallback(async () => {
-    if (!isListening) return;
-    try {
-      await Voice.stop();
-    } catch (e) {
-      console.error("Voice stop error:", e);
-      setAndClearVoiceError("Error stopping voice recognition.");
-    } finally {
-      setIsListening(false);
-    }
+    // Temporarily disabled voice functionality
+            logDebug("Voice stop temporarily disabled");
+    // if (!isListening) return;
+    // try {
+    //   await Voice.stop();
+    // } catch (e) {
+    //   console.error("Voice stop error:", e);
+    //   setAndClearVoiceError("Error stopping voice recognition.");
+    // } finally {
+    //   setIsListening(false);
+    // }
   }, [isListening, setAndClearVoiceError]);
 
   const toggleVoiceSearch = useCallback(() => {
@@ -383,11 +617,47 @@ const HomeScreen: React.FC = () => {
 
   const handleBottomNavPress = (screenName: string) => {
     setActiveBottomTab(screenName);
-    Keyboard.dismiss();
-    if (screenName === 'Map') { if (router.pathname !== '/' && router.pathname !== '/home') router.replace('/'); }
-    else if (screenName === 'Saved') router.push('/savedDestinationsScreen');
-    else if (screenName === 'Menu') router.push('/menuScreen');
+    switch (screenName) {
+      case 'Map':
+        // Already on map screen
+        break;
+      case 'Saved':
+        router.push('/savedDestinationsScreen');
+        break;
+      case 'Search':
+        router.push('/searchScreen');
+        break;
+      case 'Menu':
+        router.push('/menuScreen');
+        break;
+      case 'Profile':
+        router.push('/profileScreen');
+        break;
+    }
   };
+
+  // Test backend connection on component mount
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        const { testBackendConnection, testAllApiEndpoints } = await import('../src/services/api');
+        const { testAuthFlow } = await import('../src/services/auth');
+        
+        const isConnected = await testBackendConnection();
+        logDebug('Backend connection test result', { isConnected });
+        
+        if (isConnected) {
+          const apiResults = await testAllApiEndpoints();
+          const authResults = await testAuthFlow();
+          logDebug('API test results', { apiResults, authResults });
+        }
+      } catch (error) {
+        logDebug('Backend connection test failed', error);
+      }
+    };
+    
+    testConnection();
+  }, []);
 
   const USERNAME = 'Jane Doe'; // Replace with real user data if available
 
@@ -402,12 +672,12 @@ const HomeScreen: React.FC = () => {
       <Stack.Screen options={{ headerShown: false }} />
       {/* Subtle background gradient for depth */}
       <LinearGradient
-        colors={[THEME.BACKGROUND_LIGHT, '#eaf3fb']}
+        colors={[theme.colors.BACKGROUND_PRIMARY, addAlpha(theme.colors.BACKGROUND_SECONDARY, 0.3)]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
       />
       <View style={styles.container}>
-        <StatusBar barStyle={Platform.OS === 'ios' ? "dark-content" : "light-content"} backgroundColor={THEME.PRIMARY_BRAND_COLOR} />
+        <StatusBar barStyle={Platform.OS === 'ios' ? "dark-content" : "light-content"} backgroundColor={theme.colors.ACCENT_COLOR} />
         <MapView
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
@@ -428,11 +698,11 @@ const HomeScreen: React.FC = () => {
           <FadeInView delay={120} style={styles.hazardCardWrapper} yOffset={-10}>
             <View style={styles.hazardCard}>
               <View style={styles.hazardCardHeader}>
-                <MaterialCommunityIcons name="alert-circle-outline" size={24} color={THEME.ERROR_COLOR} style={{ marginRight: 8 }} />
+                <MaterialCommunityIcons name="alert-circle-outline" size={24} color={theme.colors.ERROR_COLOR} style={{ marginRight: 8 }} />
                 <Text style={styles.hazardCardTitle}>Recent Hazards</Text>
                 <View style={{ flex: 1 }} />
                 <AnimatedPressable onPress={handleHazardReport} style={styles.hazardReportBtn}>
-                  <MaterialCommunityIcons name="plus-circle-outline" size={22} color="#fff" />
+                  <MaterialCommunityIcons name="plus-circle-outline" size={22} color={theme.colors.WHITE} />
                   <Text style={styles.hazardReportBtnText}>Report</Text>
                 </AnimatedPressable>
               </View>
@@ -441,9 +711,9 @@ const HomeScreen: React.FC = () => {
               ) : (
                 recentHazards.slice(0, 2).map((hazard) => (
                   <View key={hazard.id} style={styles.hazardCardItem}>
-                    <MaterialCommunityIcons name="alert" size={18} color={THEME.ERROR_COLOR} style={{ marginRight: 6 }} />
+                    <MaterialCommunityIcons name="alert" size={18} color={theme.colors.ERROR_COLOR} style={{ marginRight: 6 }} />
                     <Text style={styles.hazardCardItemText} numberOfLines={1}>
-                      <Text style={{ fontWeight: '700' }}>{hazard.category}:</Text> {hazard.description}
+                      {hazard.category}: {hazard.description}
                     </Text>
                     <Text style={styles.hazardCardItemDate}>{hazard.date}</Text>
                   </View>
@@ -455,7 +725,7 @@ const HomeScreen: React.FC = () => {
 
         {isFetchingInitialLocation && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color={THEME.PRIMARY_BRAND_COLOR} />
+            <ActivityIndicator size="large" color={theme.colors.ACCENT_COLOR} />
             <Text style={styles.loadingText}>Finding your location...</Text>
           </View>
         )}
@@ -464,17 +734,17 @@ const HomeScreen: React.FC = () => {
           <>
             <FadeInView delay={180} style={styles.searchAreaWrapper} yOffset={-30}>
               <Pressable style={styles.searchBarContainer} onPress={navigateToSearchScreen} >
-                  <Ionicons name="search-outline" size={ICON_SIZE_STANDARD * 0.9} color={THEME.TEXT_PLACEHOLDER} style={styles.searchIcon} />
+                  <Ionicons name="search-outline" size={ICON_SIZE_STANDARD * 0.9} color={theme.colors.TEXT_TERTIARY} style={styles.searchIcon} />
                   <Text style={styles.searchPlaceholderText} numberOfLines={1}>
                     {searchText ? searchText : "Where to?"}
                   </Text>
                   {searchText ? (
                       <AnimatedPressable onPress={clearSearch} style={styles.clearSearchButton}>
-                          <Ionicons name="close-circle" size={ICON_SIZE_STANDARD * 0.9} color={THEME.TEXT_SECONDARY} />
+                          <Ionicons name="close-circle" size={ICON_SIZE_STANDARD * 0.9} color={theme.colors.TEXT_SECONDARY} />
                       </AnimatedPressable>
                   ) : (
                       <AnimatedPressable onPress={toggleVoiceSearch} style={styles.voiceSearchButton}>
-                          <MaterialCommunityIcons name={isListening ? "microphone-off" : "microphone-outline"} size={ICON_SIZE_STANDARD} color={isListening ? THEME.ACCENT_COLOR : THEME.PRIMARY_BRAND_COLOR} />
+                          <MaterialCommunityIcons name={isListening ? "microphone-off" : "microphone-outline"} size={ICON_SIZE_STANDARD} color={isListening ? theme.colors.ACCENT_COLOR : theme.colors.ACCENT_COLOR} />
                       </AnimatedPressable>
                   )}
               </Pressable>
@@ -487,7 +757,7 @@ const HomeScreen: React.FC = () => {
 
             {/* Floating Hazard Report Button */}
             <AnimatedPressable onPress={handleHazardReport} style={styles.fabHazard}>
-              <MaterialCommunityIcons name="alert-circle-outline" size={28} color="#fff" />
+              <MaterialCommunityIcons name="alert-circle-outline" size={28} color={theme.colors.WHITE} />
             </AnimatedPressable>
 
             <View style={styles.rightControlsContainer}>
@@ -498,7 +768,7 @@ const HomeScreen: React.FC = () => {
               ].map((item) => (
                 <FadeInView key={item.key} delay={item.delay} style={styles.controlButtonWrapper} yOffset={20}>
                   <AnimatedPressable onPress={item.action} style={styles.controlButton}>
-                    <Ionicons name={item.icon} size={item.size} color={THEME.PRIMARY_BRAND_COLOR} />
+                    <Ionicons name={item.icon} size={item.size} color={theme.colors.ACCENT_COLOR} />
                   </AnimatedPressable>
                 </FadeInView>
               ))}
@@ -523,9 +793,9 @@ const HomeScreen: React.FC = () => {
                       <IconComponent
                           name={item.icon}
                           size={ICON_SIZE_STANDARD - (isActive ? 0 : 2)}
-                          color={isActive ? THEME.ACCENT_COLOR : THEME.TEXT_SECONDARY}
+                          color={isActive ? theme.colors.ACCENT_COLOR : theme.colors.TEXT_SECONDARY}
                       />
-                      <Text style={[ styles.bottomNavButtonText, isActive && styles.bottomNavButtonTextActive, ]} >
+                      <Text style={[ styles.bottomNavButtonText, isActive && styles.bottomNavButtonTextActive ]} >
                         {item.name}
                       </Text>
                     </View>
@@ -539,138 +809,5 @@ const HomeScreen: React.FC = () => {
     </>
   );
 };
-
-// ... (your styles StyleSheet.create code remains unchanged)
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: THEME.BACKGROUND_LIGHT, },
-  map: { ...StyleSheet.absoluteFillObject, },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 20,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: THEME.TEXT_PRIMARY,
-    fontWeight: '500',
-  },
-  searchAreaWrapper: { position: 'absolute', top: (StatusBar.currentHeight || (Platform.OS === 'ios' ? 44 : 24)) + 15, left: 15, right: 15, zIndex: 10, alignItems: 'center', },
-  searchBarContainer: { backgroundColor: THEME.BACKGROUND_WHITE, borderRadius: 28, paddingVertical: Platform.OS === 'ios' ? 14 : 12, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', width: '100%', shadowColor: THEME.SHADOW_COLOR, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 1, shadowRadius: 12, elevation: 8, },
-  searchIcon: { marginRight: 12, },
-  searchPlaceholderText: { flex: 1, fontSize: 16, color: THEME.TEXT_PLACEHOLDER, marginRight: 8, },
-  clearSearchButton: { padding: 6, },
-  voiceSearchButton: { padding: 6, },
-  voiceStatusContainer: { marginTop: 10, paddingHorizontal: 15, paddingVertical: 8, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 15, alignSelf: 'center', },
-  voiceErrorText: { color: THEME.ERROR_COLOR, fontSize: 13, textAlign: 'center', fontWeight: '500', },
-  rightControlsContainer: { position: 'absolute', top: (StatusBar.currentHeight || (Platform.OS === 'ios' ? 44 : 24)) + 15 + 65 + 20, right: 15, alignItems: 'center', zIndex: 10, },
-  controlButtonWrapper: { marginBottom: 15, },
-  controlButton: { backgroundColor: THEME.MAP_CONTROL_BACKGROUND, width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', shadowColor: THEME.SHADOW_COLOR, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 6, elevation: 6, },
-  bottomNavWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10, },
-  bottomNav: { flexDirection: 'row', backgroundColor: THEME.BACKGROUND_WHITE, borderTopLeftRadius: 25, borderTopRightRadius: 25, paddingTop: 10, paddingBottom: Platform.OS === 'ios' ? 30 : 10, minHeight: Platform.OS === 'ios' ? 85 : 65, shadowColor: THEME.SHADOW_COLOR, shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 10, alignItems: 'flex-start', },
-  bottomNavButtonContainer: { alignItems: 'center', justifyContent: 'center', flex: 1 },
-  bottomNavButton: { alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 5, borderRadius: 18, width: '80%', maxWidth: 100, },
-  bottomNavButtonActive: { backgroundColor: THEME.PRIMARY_BRAND_COLOR + '20', },
-  bottomNavButtonText: { fontSize: 11, color: THEME.TEXT_SECONDARY, marginTop: 4, fontWeight: '500', },
-  bottomNavButtonTextActive: { color: THEME.ACCENT_COLOR, fontWeight: '700', },
-  fabHazard: {
-    position: 'absolute',
-    bottom: 100,
-    right: 24,
-    backgroundColor: THEME.ERROR_COLOR,
-    borderRadius: 32,
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: THEME.ERROR_COLOR,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-  },
-  greetingWrapper: {
-    position: 'absolute',
-    top: (StatusBar.currentHeight || (Platform.OS === 'ios' ? 44 : 24)) + 15 - 60,
-    left: 25,
-    zIndex: 20,
-  },
-  greetingText: {
-    fontSize: 16,
-    color: THEME.TEXT_SECONDARY,
-    fontWeight: '500',
-  },
-  greetingName: {
-    fontSize: 22,
-    color: THEME.PRIMARY_BRAND_COLOR,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  hazardCardWrapper: {
-    position: 'absolute',
-    top: (StatusBar.currentHeight || (Platform.OS === 'ios' ? 44 : 24)) + 80,
-    left: 15,
-    right: 15,
-    zIndex: 15,
-  },
-  hazardCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 18,
-    shadowColor: THEME.ERROR_COLOR,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  hazardCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  hazardCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: THEME.ERROR_COLOR,
-  },
-  hazardReportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME.ERROR_COLOR,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginLeft: 10,
-  },
-  hazardReportBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-    marginLeft: 6,
-    fontSize: 14,
-  },
-  hazardCardEmpty: {
-    color: THEME.TEXT_SECONDARY,
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  hazardCardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  hazardCardItemText: {
-    flex: 1,
-    fontSize: 14,
-    color: THEME.TEXT_PRIMARY,
-  },
-  hazardCardItemDate: {
-    fontSize: 12,
-    color: THEME.TEXT_SECONDARY,
-    marginLeft: 8,
-  },
-});
 
 export default HomeScreen;

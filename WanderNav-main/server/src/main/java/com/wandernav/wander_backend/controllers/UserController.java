@@ -72,4 +72,11 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
         }
     }
+
+    @Operation(summary = "Search users by username or email (case-insensitive, partial match)")
+    @GetMapping("/search")
+    public ResponseEntity<List<User>> searchUsers(@RequestParam String query) {
+        List<User> users = userRepository.findByUsernameIgnoreCaseContainingOrEmailIgnoreCaseContaining(query, query);
+        return ResponseEntity.ok(users);
+    }
 }

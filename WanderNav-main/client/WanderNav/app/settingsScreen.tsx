@@ -16,6 +16,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
 
 const USERNAME = 'John Doe'; // Replace with real user data if available
 const EMAIL = 'john.doe@email.com'; // Replace with real user data if available
@@ -23,7 +24,7 @@ const APP_VERSION = '1.0.0';
 
 const SettingsScreen = () => {
   const router = useRouter();
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { theme, themeMode, isDark, toggleTheme, setThemeMode } = useTheme();
   const [isMetric, setIsMetric] = useState(true);
   const [language, setLanguage] = useState('English');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -50,8 +51,11 @@ const SettingsScreen = () => {
   };
 
   const handleThemeToggle = () => {
-    setIsDarkMode((prev) => !prev);
-    // Integrate with your theme context/provider if available
+    toggleTheme();
+  };
+
+  const handleThemeModeChange = (mode: 'light' | 'dark' | 'system') => {
+    setThemeMode(mode);
   };
 
   const handleUnitsToggle = () => {
@@ -127,97 +131,153 @@ const SettingsScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.BACKGROUND_PRIMARY }]}>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* Profile Section */}
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
-            <Ionicons name="person-circle" size={72} color="#3498DB" />
+            <Ionicons name="person-circle" size={72} color={theme.colors.PRIMARY_BRAND_COLOR} />
           </View>
-          <Text style={styles.username}>{editName}</Text>
-          <Text style={styles.email}>{editEmail}</Text>
-          <TouchableOpacity style={styles.editProfileBtn} onPress={() => setEditProfileModal(true)}>
-            <Ionicons name="create-outline" size={18} color="#3498DB" />
-            <Text style={styles.editProfileText}>Edit Profile</Text>
+          <Text style={[styles.username, { color: theme.colors.TEXT_PRIMARY }]}>{editName}</Text>
+          <Text style={[styles.email, { color: theme.colors.TEXT_SECONDARY }]}>{editEmail}</Text>
+          <TouchableOpacity style={[styles.editProfileBtn, { backgroundColor: theme.colors.BACKGROUND_SECONDARY }]} onPress={() => setEditProfileModal(true)}>
+            <Ionicons name="create-outline" size={18} color={theme.colors.PRIMARY_BRAND_COLOR} />
+            <Text style={[styles.editProfileText, { color: theme.colors.PRIMARY_BRAND_COLOR }]}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
 
         {/* Account Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.PRIMARY_BRAND_COLOR }]}>Account</Text>
           <TouchableOpacity style={styles.row} onPress={() => setChangePasswordModal(true)}>
-            <MaterialCommunityIcons name="lock-reset" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Change Password</Text>
+            <MaterialCommunityIcons name="lock-reset" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Change Password</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={() => setDeleteAccountModal(true)}>
-            <MaterialCommunityIcons name="account-remove-outline" size={24} color="#E74C3C" style={styles.icon} />
-            <Text style={[styles.rowLabel, { color: '#E74C3C' }]}>Delete Account</Text>
+            <MaterialCommunityIcons name="account-remove-outline" size={24} color={theme.colors.ERROR_COLOR} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.ERROR_COLOR }]}>Delete Account</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Preferences Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferences</Text>
+        {/* Theme Section */}
+        <View style={[styles.section, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.PRIMARY_BRAND_COLOR }]}>Theme</Text>
           <View style={styles.row}>
-            <MaterialCommunityIcons name="theme-light-dark" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Dark Mode</Text>
+            <MaterialCommunityIcons name="theme-light-dark" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Dark Mode</Text>
             <Switch
-              value={isDarkMode}
+              value={isDark}
               onValueChange={handleThemeToggle}
-              thumbColor={isDarkMode ? '#3498DB' : '#fff'}
-              trackColor={{ false: '#ccc', true: '#3498DB' }}
+              thumbColor={isDark ? theme.colors.ACCENT_COLOR : theme.colors.WHITE}
+              trackColor={{ false: theme.colors.BORDER_COLOR, true: theme.colors.ACCENT_COLOR }}
               style={styles.switch}
             />
           </View>
+          <View style={styles.row}>
+            <MaterialCommunityIcons name="palette-outline" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Theme Mode</Text>
+            <Text style={[styles.valueText, { color: theme.colors.TEXT_SECONDARY }]}>
+              {themeMode === 'system' ? 'Auto' : themeMode === 'dark' ? 'Dark' : 'Light'}
+            </Text>
+          </View>
+          <View style={styles.themeModeButtons}>
+            <TouchableOpacity 
+              style={[
+                styles.themeModeButton, 
+                { backgroundColor: themeMode === 'light' ? theme.colors.ACCENT_COLOR : theme.colors.BACKGROUND_SECONDARY }
+              ]} 
+              onPress={() => handleThemeModeChange('light')}
+            >
+              <Text style={[
+                styles.themeModeButtonText, 
+                { color: themeMode === 'light' ? theme.colors.WHITE : theme.colors.TEXT_SECONDARY }
+              ]}>
+                Light
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[
+                styles.themeModeButton, 
+                { backgroundColor: themeMode === 'dark' ? theme.colors.ACCENT_COLOR : theme.colors.BACKGROUND_SECONDARY }
+              ]} 
+              onPress={() => handleThemeModeChange('dark')}
+            >
+              <Text style={[
+                styles.themeModeButtonText, 
+                { color: themeMode === 'dark' ? theme.colors.WHITE : theme.colors.TEXT_SECONDARY }
+              ]}>
+                Dark
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[
+                styles.themeModeButton, 
+                { backgroundColor: themeMode === 'system' ? theme.colors.ACCENT_COLOR : theme.colors.BACKGROUND_SECONDARY }
+              ]} 
+              onPress={() => handleThemeModeChange('system')}
+            >
+              <Text style={[
+                styles.themeModeButtonText, 
+                { color: themeMode === 'system' ? theme.colors.WHITE : theme.colors.TEXT_SECONDARY }
+              ]}>
+                Auto
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Preferences Section */}
+        <View style={[styles.section, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.PRIMARY_BRAND_COLOR }]}>Preferences</Text>
           <TouchableOpacity style={styles.row} onPress={handleLanguageChange}>
-            <MaterialCommunityIcons name="translate" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Language</Text>
-            <Text style={styles.valueText}>{language}</Text>
+            <MaterialCommunityIcons name="translate" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Language</Text>
+            <Text style={[styles.valueText, { color: theme.colors.TEXT_SECONDARY }]}>{language}</Text>
           </TouchableOpacity>
           <View style={styles.row}>
-            <MaterialCommunityIcons name="ruler-square" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Units</Text>
-            <Text style={styles.valueText}>{isMetric ? 'Metric (km, °C)' : 'Imperial (mi, °F)'}</Text>
+            <MaterialCommunityIcons name="ruler-square" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Units</Text>
+            <Text style={[styles.valueText, { color: theme.colors.TEXT_SECONDARY }]}>{isMetric ? 'Metric (km, °C)' : 'Imperial (mi, °F)'}</Text>
             <Switch
               value={isMetric}
               onValueChange={handleUnitsToggle}
-              thumbColor={isMetric ? '#3498DB' : '#fff'}
-              trackColor={{ false: '#ccc', true: '#3498DB' }}
+              thumbColor={isMetric ? theme.colors.ACCENT_COLOR : theme.colors.WHITE}
+              trackColor={{ false: theme.colors.BORDER_COLOR, true: theme.colors.ACCENT_COLOR }}
               style={styles.switch}
             />
           </View>
           <View style={styles.row}>
-            <MaterialCommunityIcons name="bell-outline" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Notifications</Text>
+            <MaterialCommunityIcons name="bell-outline" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Notifications</Text>
             <Switch
               value={notificationsEnabled}
               onValueChange={handleNotificationToggle}
-              thumbColor={notificationsEnabled ? '#3498DB' : '#fff'}
-              trackColor={{ false: '#ccc', true: '#3498DB' }}
+              thumbColor={notificationsEnabled ? theme.colors.ACCENT_COLOR : theme.colors.WHITE}
+              trackColor={{ false: theme.colors.BORDER_COLOR, true: theme.colors.ACCENT_COLOR }}
               style={styles.switch}
             />
           </View>
         </View>
 
         {/* App Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>App</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.PRIMARY_BRAND_COLOR }]}>App</Text>
           <View style={styles.row}>
-            <MaterialCommunityIcons name="information-outline" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Version</Text>
-            <Text style={styles.valueText}>{APP_VERSION}</Text>
+            <MaterialCommunityIcons name="information-outline" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Version</Text>
+            <Text style={[styles.valueText, { color: theme.colors.TEXT_SECONDARY }]}>{APP_VERSION}</Text>
           </View>
           <TouchableOpacity style={styles.row} onPress={() => Alert.alert('About', 'WanderNav helps you navigate, report hazards, and connect with your travel community.') }>
-            <MaterialCommunityIcons name="account-group-outline" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>About WanderNav</Text>
+            <MaterialCommunityIcons name="account-group-outline" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>About WanderNav</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={handleRateApp}>
             <FontAwesome name="star" size={22} color="#F1C40F" style={styles.icon} />
-            <Text style={styles.rowLabel}>Rate Us</Text>
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Rate Us</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={handleInviteFriends}>
-            <MaterialCommunityIcons name="account-plus-outline" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Invite Friends</Text>
+            <MaterialCommunityIcons name="account-plus-outline" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Invite Friends</Text>
           </TouchableOpacity>
           <View style={[styles.row, { justifyContent: 'flex-start' }] }>
             <TouchableOpacity onPress={() => handleSocialLink('twitter')} style={styles.socialIconBtn}>
@@ -233,43 +293,43 @@ const SettingsScreen = () => {
         </View>
 
         {/* Support Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Support</Text>
+        <View style={[styles.section, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.PRIMARY_BRAND_COLOR }]}>Support</Text>
           <TouchableOpacity style={styles.row} onPress={handleFeedback}>
-            <Ionicons name="mail-outline" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Send Feedback</Text>
+            <Ionicons name="mail-outline" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Send Feedback</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={() => openLink('https://wandernav.com/faq')}>
-            <MaterialCommunityIcons name="help-circle-outline" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>FAQ</Text>
+            <MaterialCommunityIcons name="help-circle-outline" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>FAQ</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={() => openLink('https://wandernav.com/support')}>
-            <MaterialCommunityIcons name="headset" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Contact Support</Text>
+            <MaterialCommunityIcons name="headset" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Contact Support</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={() => Alert.alert('Report a Bug', 'Bug report feature coming soon!')}>
             <MaterialCommunityIcons name="bug-outline" size={24} color="#E67E22" style={styles.icon} />
-            <Text style={styles.rowLabel}>Report a Bug</Text>
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Report a Bug</Text>
           </TouchableOpacity>
         </View>
 
         {/* Legal Section */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
           <TouchableOpacity style={styles.row} onPress={() => openLink('https://wandernav.com/privacy')}>
-            <MaterialCommunityIcons name="shield-lock-outline" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Privacy Policy</Text>
+            <MaterialCommunityIcons name="shield-lock-outline" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Privacy Policy</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={() => openLink('https://wandernav.com/terms')}>
-            <MaterialCommunityIcons name="file-document-outline" size={24} color="#2C3E50" style={styles.icon} />
-            <Text style={styles.rowLabel}>Terms of Service</Text>
+            <MaterialCommunityIcons name="file-document-outline" size={24} color={theme.colors.TEXT_PRIMARY} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.TEXT_PRIMARY }]}>Terms of Service</Text>
           </TouchableOpacity>
         </View>
 
         {/* Logout */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
           <TouchableOpacity style={[styles.row, styles.logoutRow]} onPress={handleLogout}>
-            <MaterialCommunityIcons name="logout" size={24} color="#FF3B30" style={styles.icon} />
-            <Text style={[styles.rowLabel, { color: '#FF3B30' }]}>Log Out</Text>
+            <MaterialCommunityIcons name="logout" size={24} color={theme.colors.ERROR_COLOR} style={styles.icon} />
+            <Text style={[styles.rowLabel, { color: theme.colors.ERROR_COLOR }]}>Log Out</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -277,27 +337,37 @@ const SettingsScreen = () => {
       {/* Edit Profile Modal */}
       <Modal visible={editProfileModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Profile</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.PRIMARY_BRAND_COLOR }]}>Edit Profile</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { 
+                backgroundColor: theme.colors.BACKGROUND_SECONDARY,
+                color: theme.colors.TEXT_PRIMARY,
+                borderColor: theme.colors.BORDER_COLOR
+              }]}
               value={editName}
               onChangeText={setEditName}
               placeholder="Name"
+              placeholderTextColor={theme.colors.TEXT_SECONDARY}
             />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { 
+                backgroundColor: theme.colors.BACKGROUND_SECONDARY,
+                color: theme.colors.TEXT_PRIMARY,
+                borderColor: theme.colors.BORDER_COLOR
+              }]}
               value={editEmail}
               onChangeText={setEditEmail}
               placeholder="Email"
+              placeholderTextColor={theme.colors.TEXT_SECONDARY}
               keyboardType="email-address"
             />
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalBtn} onPress={() => setEditProfileModal(false)}>
-                <Text style={styles.modalBtnText}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: theme.colors.BACKGROUND_SECONDARY }]} onPress={() => setEditProfileModal(false)}>
+                <Text style={[styles.modalBtnText, { color: theme.colors.TEXT_PRIMARY }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveProfile}>
-                <Text style={[styles.modalBtnText, { color: '#fff' }]}>Save</Text>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary, { backgroundColor: theme.colors.ACCENT_COLOR }]} onPress={handleSaveProfile}>
+                <Text style={[styles.modalBtnText, { color: theme.colors.WHITE }]}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -307,17 +377,44 @@ const SettingsScreen = () => {
       {/* Change Password Modal */}
       <Modal visible={changePasswordModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Change Password</Text>
-            <TextInput style={styles.input} placeholder="Current Password" secureTextEntry />
-            <TextInput style={styles.input} placeholder="New Password" secureTextEntry />
-            <TextInput style={styles.input} placeholder="Confirm New Password" secureTextEntry />
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.PRIMARY_BRAND_COLOR }]}>Change Password</Text>
+            <TextInput 
+              style={[styles.input, { 
+                backgroundColor: theme.colors.BACKGROUND_SECONDARY,
+                color: theme.colors.TEXT_PRIMARY,
+                borderColor: theme.colors.BORDER_COLOR
+              }]}
+              placeholder="Current Password" 
+              placeholderTextColor={theme.colors.TEXT_SECONDARY}
+              secureTextEntry 
+            />
+            <TextInput 
+              style={[styles.input, { 
+                backgroundColor: theme.colors.BACKGROUND_SECONDARY,
+                color: theme.colors.TEXT_PRIMARY,
+                borderColor: theme.colors.BORDER_COLOR
+              }]}
+              placeholder="New Password" 
+              placeholderTextColor={theme.colors.TEXT_SECONDARY}
+              secureTextEntry 
+            />
+            <TextInput 
+              style={[styles.input, { 
+                backgroundColor: theme.colors.BACKGROUND_SECONDARY,
+                color: theme.colors.TEXT_PRIMARY,
+                borderColor: theme.colors.BORDER_COLOR
+              }]}
+              placeholder="Confirm New Password" 
+              placeholderTextColor={theme.colors.TEXT_SECONDARY}
+              secureTextEntry 
+            />
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalBtn} onPress={() => setChangePasswordModal(false)}>
-                <Text style={styles.modalBtnText}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: theme.colors.BACKGROUND_SECONDARY }]} onPress={() => setChangePasswordModal(false)}>
+                <Text style={[styles.modalBtnText, { color: theme.colors.TEXT_PRIMARY }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleChangePassword}>
-                <Text style={[styles.modalBtnText, { color: '#fff' }]}>Change</Text>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary, { backgroundColor: theme.colors.ACCENT_COLOR }]} onPress={handleChangePassword}>
+                <Text style={[styles.modalBtnText, { color: theme.colors.WHITE }]}>Change</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -327,17 +424,17 @@ const SettingsScreen = () => {
       {/* Delete Account Modal */}
       <Modal visible={deleteAccountModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Delete Account</Text>
-            <Text style={{ color: '#E74C3C', marginBottom: 16, textAlign: 'center' }}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.PRIMARY_BRAND_COLOR }]}>Delete Account</Text>
+            <Text style={[styles.modalBtnText, { color: theme.colors.ERROR_COLOR, marginBottom: 16, textAlign: 'center' }]}>
               Are you sure you want to delete your account? This action cannot be undone.
             </Text>
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalBtn} onPress={() => setDeleteAccountModal(false)}>
-                <Text style={styles.modalBtnText}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: theme.colors.BACKGROUND_SECONDARY }]} onPress={() => setDeleteAccountModal(false)}>
+                <Text style={[styles.modalBtnText, { color: theme.colors.TEXT_PRIMARY }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary, { backgroundColor: '#E74C3C' }]} onPress={handleDeleteAccount}>
-                <Text style={[styles.modalBtnText, { color: '#fff' }]}>Delete</Text>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary, { backgroundColor: theme.colors.ERROR_COLOR }]} onPress={handleDeleteAccount}>
+                <Text style={[styles.modalBtnText, { color: theme.colors.WHITE }]}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -491,5 +588,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#3498DB',
+  },
+  themeModeButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingHorizontal: 12,
+  },
+  themeModeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginHorizontal: 4,
+    alignItems: 'center',
+  },
+  themeModeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

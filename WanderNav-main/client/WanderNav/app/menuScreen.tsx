@@ -11,16 +11,20 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  Share,
+  Linking,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
-import { THEME } from '../constants/theme';
+import { THEME, addAlpha } from '../constants/theme';
 import { useFocusEffect } from 'expo-router';
-
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../contexts/ThemeContext';
 const AVATAR_PLACEHOLDER = 'https://placeimg.com/150/150/people/3';
 const USERNAME = 'Jane Doe';
 const EMAIL = 'jane.doe@example.com';
 const APP_VERSION = '1.0.0';
+const BUILD_NUMBER = '1';
 
 const PRESSED_SCALE_VALUE = 0.97;
 const AnimatedPressable = ({ onPress, style, children, pressableStyle }: any) => {
@@ -54,6 +58,7 @@ const FadeInView = ({ children, duration = 300, delay = 0, style, slideFrom = 'b
 };
 
 const MenuScreen = () => {
+  const { theme } = useTheme();
   const router = useRouter();
   const [elementsVisible, setElementsVisible] = useState(false);
 
@@ -65,63 +70,215 @@ const MenuScreen = () => {
   );
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'You have been logged out.');
-    // Add real logout logic here
-    router.replace('/SignIn');
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Logout', 
+          style: 'destructive',
+          onPress: () => {
+            // Clear user data, tokens, etc.
+            console.log('User logged out');
+            router.replace('/SignIn');
+          }
+        },
+      ]
+    );
   };
 
-  const handleRateApp = () => {
-    Alert.alert('Rate App', 'Rate app feature coming soon!');
+  const handleRateApp = async () => {
+    try {
+      const url = Platform.OS === 'ios' 
+        ? 'https://apps.apple.com/app/wandernav/id123456789'
+        : 'https://play.google.com/store/apps/details?id=com.wandernav.app';
+      
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Rate App', 'App store link not available. Please search for WanderNav in your app store.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Could not open app store. Please search for WanderNav manually.');
+    }
   };
 
-  const handleInviteFriends = () => {
-    Alert.alert('Invite Friends', 'Invite friends feature coming soon!');
+  const handleInviteFriends = async () => {
+    try {
+      const message = `Hey! I'm using WanderNav - an amazing navigation app that helps you find the best routes, report hazards, and connect with other travelers. Download it here: https://wandernav.app`;
+      
+      await Share.share({
+        message,
+        title: 'Check out WanderNav!',
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Could not share app. Please try again.');
+    }
   };
 
   const handleHelp = () => {
-    Alert.alert('Help & Support', 'Help & Support feature coming soon!');
+    Alert.alert(
+      'Help & Support',
+      'Need help? Contact our support team:\n\nEmail: support@wandernav.app\nPhone: +1-800-WANDER\n\nOr visit our help center at help.wandernav.app',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Contact Support', 
+          onPress: () => {
+            Linking.openURL('mailto:support@wandernav.app?subject=WanderNav Support Request');
+          }
+        },
+      ]
+    );
   };
 
   const handleAbout = () => {
-    Alert.alert('About', 'WanderNav helps you navigate, report hazards, and connect with your travel community.');
+    Alert.alert(
+      'About WanderNav',
+      `WanderNav v${APP_VERSION} (${BUILD_NUMBER})\n\nWanderNav helps you navigate, report hazards, and connect with your travel community.\n\n© 2024 WanderNav Team\nAll rights reserved.`,
+      [
+        { text: 'Privacy Policy', onPress: () => Linking.openURL('https://wandernav.app/privacy') },
+        { text: 'Terms of Service', onPress: () => Linking.openURL('https://wandernav.app/terms') },
+        { text: 'OK', style: 'default' },
+      ]
+    );
+  };
+
+  const handleSettings = () => {
+    router.push('/settingsScreen');
+  };
+
+  const handleGroupMessaging = () => {
+    router.push('/groupMessagingScreen');
+  };
+
+  const handleSavedDestinations = () => {
+    router.push('/savedDestinationsScreen');
+  };
+
+  const handleHazardReports = () => {
+    router.push('/hazardReportScreen');
+  };
+
+  const handleDirectChat = () => {
+    router.push('/directChatScreen');
+  };
+
+  const handleDashcam = () => {
+    router.push('/dashcam');
+  };
+
+  const handleSearch = () => {
+    router.push('/searchScreen');
   };
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: 'Menu' }} />
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+            <Stack.Screen options={{
+        title: 'Menu',
+        headerStyle: {
+          backgroundColor: theme.colors.BACKGROUND_SURFACE,
+        },
+        headerTintColor: theme.colors.TEXT_PRIMARY,
+        headerShadowVisible: false,
+      }} />
+      
+      <LinearGradient
+        colors={[theme.colors.BACKGROUND_PRIMARY, theme.colors.BACKGROUND_SECONDARY]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* Profile Card */}
         <FadeInView delay={50} slideFrom="top">
-          <View style={styles.profileCard}>
+          <View style={[styles.profileCard, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
             <TouchableOpacity onPress={() => router.push('/profileScreen')} style={styles.profileAvatarWrapper}>
               <Image source={{ uri: AVATAR_PLACEHOLDER }} style={styles.profileAvatar} />
-              <View style={styles.profileAvatarEdit}><Ionicons name="create-outline" size={16} color="#fff" /></View>
+              <View style={[styles.profileAvatarEdit, { backgroundColor: theme.colors.ACCENT_COLOR }]}>
+                <Ionicons name="create-outline" size={16} color={theme.colors.WHITE} />
+              </View>
             </TouchableOpacity>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.profileName}>{USERNAME}</Text>
-              <Text style={styles.profileEmail}>{EMAIL}</Text>
+            <View style={styles.profileInfo}>
+              <Text style={[styles.profileName, { color: theme.colors.TEXT_PRIMARY }]}>{USERNAME}</Text>
+              <Text style={[styles.profileEmail, { color: theme.colors.TEXT_SECONDARY }]}>{EMAIL}</Text>
               <TouchableOpacity style={styles.profileEditBtn} onPress={() => router.push('/profileScreen')}>
-                <Text style={styles.profileEditBtnText}>View Profile</Text>
+                <LinearGradient
+                  colors={[theme.colors.ACCENT_COLOR, addAlpha(theme.colors.ACCENT_COLOR, 0.8)]}
+                  style={styles.profileEditBtnGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={[styles.profileEditBtnText, { color: theme.colors.WHITE }]}>View Profile</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
         </FadeInView>
 
         {/* Navigation Section */}
-        <View style={styles.menuSectionCard}>
+        <View style={[styles.menuSectionCard, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
           <MenuButton
-            title="Settings"
-            iconName="settings-outline"
+            title="Search & Navigation"
+            subtitle="Find places and get directions"
+            iconName="search"
             iconSet="Ionicons"
-            onPress={() => router.push('/settingsScreen')}
+            onPress={handleSearch}
             delay={100}
           />
           <MenuButton
+            title="Saved Destinations"
+            subtitle="Your favorite places"
+            iconName="bookmark"
+            iconSet="Ionicons"
+            onPress={handleSavedDestinations}
+            delay={150}
+          />
+          <MenuButton
             title="Group Messaging"
+            subtitle="Chat with travel groups"
             iconName="chatbubbles-outline"
             iconSet="Ionicons"
-            onPress={() => router.push('/groupMessagingScreen')}
+            onPress={handleGroupMessaging}
             delay={200}
+          />
+          <MenuButton
+            title="Direct Chat"
+            subtitle="Private conversations"
+            iconName="chatbubble-ellipses"
+            iconSet="Ionicons"
+            onPress={handleDirectChat}
+            delay={250}
+          />
+        </View>
+
+        {/* Features Section */}
+        <View style={[styles.menuSectionCard, { backgroundColor: theme.colors.BACKGROUND_SURFACE }]}>
+          <MenuButton
+            title="Hazard Reports"
+            subtitle="Report and view road hazards"
+            iconName="warning"
+            iconSet="Ionicons"
+            onPress={handleHazardReports}
+            delay={300}
+          />
+          <MenuButton
+            title="Dashcam Mode"
+            subtitle="Record your journey"
+            iconName="videocam"
+            iconSet="Ionicons"
+            onPress={handleDashcam}
+            delay={350}
+          />
+          <MenuButton
+            title="Settings"
+            subtitle="App preferences and account"
+            iconName="settings-outline"
+            iconSet="Ionicons"
+            onPress={handleSettings}
+            delay={400}
           />
         </View>
 
@@ -129,31 +286,35 @@ const MenuScreen = () => {
         <View style={styles.menuSectionCard}>
           <MenuButton
             title="Help & Support"
+            subtitle="Get help and contact support"
             iconName="help-circle-outline"
             iconSet="Ionicons"
             onPress={handleHelp}
-            delay={300}
+            delay={450}
           />
           <MenuButton
             title="About"
+            subtitle="App information and legal"
             iconName="information-circle-outline"
             iconSet="Ionicons"
             onPress={handleAbout}
-            delay={400}
+            delay={500}
           />
         </View>
 
-        {/* App Info Section */}
+        {/* App Actions Section */}
         <View style={styles.menuSectionCard}>
           <MenuButton
             title="Rate App"
+            subtitle="Rate us on the app store"
             iconName="star"
             iconSet="FontAwesome"
             onPress={handleRateApp}
-            delay={500}
+            delay={550}
           />
           <MenuButton
             title="Invite Friends"
+            subtitle="Share WanderNav with friends"
             iconName="account-plus-outline"
             iconSet="MaterialCommunityIcons"
             onPress={handleInviteFriends}
@@ -163,18 +324,26 @@ const MenuScreen = () => {
 
         {/* App Version */}
         <View style={styles.versionCard}>
-          <Text style={styles.versionText}>App Version {APP_VERSION}</Text>
+          <Text style={styles.versionText}>WanderNav v{APP_VERSION} ({BUILD_NUMBER})</Text>
+          <Text style={styles.deviceInfo}>WanderNav App • {Platform.OS}</Text>
         </View>
 
         {/* Logout Button */}
-        <FadeInView delay={700} style={{ marginTop: 30 }}>
+        <FadeInView delay={650} style={{ marginTop: 30 }}>
           <AnimatedPressable
             onPress={handleLogout}
             style={styles.logoutButton}
             pressableStyle={{ marginHorizontal: 20 }}
           >
-            <MaterialCommunityIcons name="logout" size={22} color={THEME.ERROR_COLOR} style={styles.menuButtonIcon} />
-            <Text style={[styles.menuButtonText, { color: THEME.ERROR_COLOR }]}>Logout</Text>
+            <LinearGradient
+              colors={['#E74C3C', '#C0392B']}
+              style={styles.logoutButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <MaterialCommunityIcons name="logout" size={22} color="#fff" style={styles.menuButtonIcon} />
+              <Text style={styles.logoutButtonText}>Logout</Text>
+            </LinearGradient>
           </AnimatedPressable>
         </FadeInView>
       </ScrollView>
@@ -182,21 +351,35 @@ const MenuScreen = () => {
   );
 };
 
-const MenuButton = ({ title, iconName, iconSet = 'MaterialCommunityIcons', onPress, delay = 0 }: any) => {
+const MenuButton = ({ title, subtitle, iconName, iconSet = 'MaterialCommunityIcons', onPress, delay = 0 }: any) => {
+  const { theme } = useTheme();
   let IconComponent: any = MaterialCommunityIcons;
   if (iconSet === 'Ionicons') IconComponent = Ionicons;
   if (iconSet === 'MaterialIcons') IconComponent = MaterialIcons;
   if (iconSet === 'FontAwesome') IconComponent = FontAwesome;
+  
   return (
     <FadeInView delay={delay} slideFrom="left">
       <AnimatedPressable
         onPress={onPress}
-        style={styles.menuButton}
+        style={[styles.menuButton, { backgroundColor: theme.colors.BACKGROUND_PRIMARY }]}
         pressableStyle={{ width: '100%' }}
       >
-        <IconComponent name={iconName} size={24} color={THEME.PRIMARY_BRAND_COLOR} style={styles.menuButtonIcon} />
-        <Text style={styles.menuButtonText}>{title}</Text>
-        <Ionicons name="chevron-forward-outline" size={22} color={THEME.TEXT_SECONDARY} />
+        <View style={styles.menuButtonIconContainer}>
+          <LinearGradient
+            colors={[theme.colors.ACCENT_COLOR, addAlpha(theme.colors.ACCENT_COLOR, 0.8)]}
+            style={styles.menuButtonIconGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <IconComponent name={iconName} size={20} color={theme.colors.WHITE} />
+          </LinearGradient>
+        </View>
+        <View style={styles.menuButtonContent}>
+          <Text style={[styles.menuButtonText, { color: theme.colors.TEXT_PRIMARY }]}>{title}</Text>
+          {subtitle && <Text style={[styles.menuButtonSubtext, { color: theme.colors.TEXT_SECONDARY }]}>{subtitle}</Text>}
+        </View>
+        <Ionicons name="chevron-forward-outline" size={20} color={theme.colors.TEXT_SECONDARY} />
       </AnimatedPressable>
     </FadeInView>
   );
@@ -205,122 +388,179 @@ const MenuButton = ({ title, iconName, iconSet = 'MaterialCommunityIcons', onPre
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: THEME.BACKGROUND_LIGHT,
   },
   scrollContainer: {
     paddingVertical: 20,
     paddingBottom: 40,
   },
   profileCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    marginHorizontal: 18,
+    backgroundColor: THEME.BACKGROUND_SURFACE,
+    borderRadius: 20,
+    marginHorizontal: 20,
     marginBottom: 24,
-    padding: 22,
+    padding: 24,
     alignItems: 'center',
     shadowColor: THEME.SHADOW_COLOR,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.09,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: THEME.BORDER_COLOR_LIGHT,
   },
   profileAvatarWrapper: {
-    marginBottom: 10,
+    marginBottom: 16,
     position: 'relative',
   },
   profileAvatar: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 3,
-    borderColor: '#3498DB',
+    borderColor: THEME.ACCENT_COLOR,
     backgroundColor: '#eee',
   },
   profileAvatarEdit: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#3498DB',
-    borderRadius: 12,
-    padding: 4,
+    backgroundColor: THEME.ACCENT_COLOR,
+    borderRadius: 14,
+    padding: 6,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: THEME.BACKGROUND_SURFACE,
+    shadowColor: THEME.SHADOW_COLOR,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  profileInfo: {
+    alignItems: 'center',
   },
   profileName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2C3E50',
-    marginBottom: 2,
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: THEME.TEXT_PRIMARY,
+    marginBottom: 4,
   },
   profileEmail: {
     fontSize: 14,
-    color: '#7F8C8D',
-    marginBottom: 6,
+    color: THEME.TEXT_SECONDARY,
+    marginBottom: 12,
+    fontWeight: '500',
   },
   profileEditBtn: {
-    backgroundColor: '#EAF3FB',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    marginTop: 4,
+    borderRadius: 16,
+    shadowColor: THEME.ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  profileEditBtnGradient: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 16,
   },
   profileEditBtnText: {
-    color: '#3498DB',
+    color: '#fff',
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: 14,
   },
   menuSectionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    marginHorizontal: 18,
-    marginBottom: 18,
+    backgroundColor: THEME.BACKGROUND_SURFACE,
+    borderRadius: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
     overflow: 'hidden',
     shadowColor: THEME.SHADOW_COLOR,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 7,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: THEME.BORDER_COLOR_LIGHT,
   },
   menuButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
+    paddingVertical: 16,
     paddingHorizontal: 20,
     backgroundColor: 'transparent',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: THEME.BORDER_COLOR,
+    borderBottomColor: THEME.BORDER_COLOR_LIGHT,
+  },
+  menuButtonIconContainer: {
+    marginRight: 16,
+  },
+  menuButtonIconGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: THEME.ACCENT_COLOR,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   menuButtonIcon: {
-    marginRight: 20,
+    marginRight: 16,
+  },
+  menuButtonContent: {
+    flex: 1,
   },
   menuButtonText: {
-    flex: 1,
-    fontSize: 17,
+    fontSize: 16,
     color: THEME.TEXT_PRIMARY,
-    fontWeight: '500',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  menuButtonSubtext: {
+    fontSize: 13,
+    color: THEME.TEXT_SECONDARY,
+    fontWeight: '400',
   },
   versionCard: {
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 16,
+    paddingHorizontal: 20,
   },
   versionText: {
-    color: '#B0B7C3',
+    color: THEME.TEXT_SECONDARY,
     fontSize: 14,
     fontWeight: '500',
+    marginBottom: 4,
+  },
+  deviceInfo: {
+    color: THEME.TEXT_TERTIARY,
+    fontSize: 12,
+    fontWeight: '400',
   },
   logoutButton: {
+    borderRadius: 16,
+    shadowColor: '#E74C3C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  logoutButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 16,
     paddingHorizontal: 20,
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    shadowColor: THEME.SHADOW_COLOR,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 7,
-    elevation: 3,
+    borderRadius: 16,
+  },
+  logoutButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
 

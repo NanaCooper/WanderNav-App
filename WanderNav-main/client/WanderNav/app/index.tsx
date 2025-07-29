@@ -1,28 +1,34 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Image, StyleSheet, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTheme } from '../contexts/ThemeContext';
 
 const SplashScreen = () => {
   const router = useRouter();
+  const { theme } = useTheme();
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Show logo for 2 seconds, then fade out and navigate
+    const timer = setTimeout(() => {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 800, // Fade out over 800ms
+        useNativeDriver: true,
+      }).start(() => {
+        // Navigate to WelcomeScreen after fade completes
+        router.replace('/WelcomeScreen');
+      });
+    }, 2000); // Wait 2 seconds before starting fade
+
+    return () => clearTimeout(timer);
+  }, [fadeAnim, router]);
 
   return (
-    <View style={styles.container}>
-      {/* Logo and App Name */}
-      <View style={styles.logoContainer}>
-        <Image source={require('../assets/logo.png')} style={styles.logo} />
-        <Text style={styles.appName}>WanderNav</Text>
-      </View>
-
-      {/* Next Button */}
-      <Pressable
-        style={({ pressed }) => [
-          styles.nextButton,
-          pressed && styles.nextButtonPressed,
-        ]}
-        onPress={() => router.push('/WelcomeScreen')}
-      >
-        <Text style={[styles.nextText, { color: '#007BFF' }]}>Next</Text>
-      </Pressable>
+    <View style={[styles.container, { backgroundColor: theme.colors.BACKGROUND_PRIMARY }]}>
+      <Animated.View style={[styles.logoContainer, { opacity: fadeAnim }]}>
+        <Image source={require('../assets/WanderNavlogo.png')} style={styles.logo} />
+      </Animated.View>
     </View>
   );
 };
@@ -32,41 +38,16 @@ export default SplashScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
   },
   logo: {
-    width: 100,
-    height: 100,
+    width: 200,
+    height: 200,
     resizeMode: 'contain',
-  },
-  appName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginTop: 10,
-  },
-  nextButton: {
-    position: 'absolute',
-    bottom: 30,
-    right: 30,
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 5,
-    alignItems: 'center',
-  },
-  nextButtonPressed: {
-    backgroundColor: '#007BFF',
-  },
-  nextText: {
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });

@@ -41,6 +41,28 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for dashcam recording.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for dashcam audio recording."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location for navigation and dashcam tracking.",
+          "locationAlwaysPermission": "Allow $(PRODUCT_NAME) to use your location in the background for dashcam tracking.",
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location for navigation."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photo library to save dashcam recordings.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save dashcam recordings to your photo library."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photo library so you can select photos for hazard reports or your profile.",

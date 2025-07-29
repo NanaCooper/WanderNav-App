@@ -1,104 +1,170 @@
-import { useTheme as useInternalTheme } from '../app/contexts/ThemeContext'; // Adjust path if ThemeContext.tsx is elsewhere
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useColorScheme, Appearance } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Theme, ThemeMode, lightTheme, darkTheme, getTheme } from '../constants/themes';
 
-// --- Base Color Palettes ---
-const lightColors = {
-  primaryBrand: '#007AFF', // Blue
-  accent: '#FF9500', // Orange
-  secondaryAccent: '#34C759', // Green
+interface ThemeContextType {
+  theme: Theme;
+  themeMode: ThemeMode;
+  isDark: boolean;
+  toggleTheme: () => void;
+  setThemeMode: (mode: ThemeMode) => void;
+  setCustomTheme: (customTheme: Partial<Theme>) => void;
+}
 
-  textPrimary: '#1c1c1e', // Near black for major text
-  textSecondary: '#636366', // Medium gray for minor text
-  textDisabled: '#AEAEB2',
-  textOnPrimaryBrand: '#FFFFFF', // Text on primary brand color background
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-  backgroundRoot: '#F2F2F7', // Overall app background
-  backgroundLight: '#FFFFFF', // For cards, headers, tab bars
-  backgroundSecondary: '#E5E5EA', // Slightly off-white for grouped table views etc.
-  backgroundDark: '#1C1C1E', // For elements needing dark background in light theme (rare)
+const THEME_STORAGE_KEY = '@wander_nav_theme_mode';
 
-  border: '#C6C6C8', // Standard border color
-  separator: '#D1D1D6', // For list separators
+interface ThemeProviderProps {
+  children: ReactNode;
+}
 
-  success: '#30D158',
-  warning: '#FFD60A',
-  error: '#FF453A',
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+  const systemColorScheme = useColorScheme();
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
+  const [customTheme, setCustomThemeState] = useState<Partial<Theme> | null>(null);
 
-  // Status Bar (can be different from effective theme if needed)
-  statusBar: 'dark-content', // 'default' or 'light-content' or 'dark-content'
+  // Get the current theme based on mode and system appearance
+  const getCurrentTheme = (): Theme => {
+    if (customTheme) {
+      return { ...lightTheme, ...customTheme };
+    }
+
+    if (themeMode === 'system') {
+      return getTheme(systemColorScheme);
+    }
+
+    return themeMode === 'dark' ? darkTheme : lightTheme;
+  };
+
+  const [theme, setTheme] = useState<Theme>(getCurrentTheme());
+
+  // Load saved theme mode from storage
+  useEffect(() => {
+    const loadThemeMode = async () => {
+      try {
+        const savedThemeMode = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+        if (savedThemeMode && ['light', 'dark', 'system'].includes(savedThemeMode)) {
+          setThemeModeState(savedThemeMode as ThemeMode);
+        }
+      } catch (error) {
+        console.error('Error loading theme mode:', error);
+      }
+    };
+
+    loadThemeMode();
+  }, []);
+
+  // Update theme when themeMode or system appearance changes
+  useEffect(() => {
+    const newTheme = getCurrentTheme();
+    setTheme(newTheme);
+  }, [themeMode, systemColorScheme, customTheme]);
+
+  // Save theme mode to storage
+  const saveThemeMode = async (mode: ThemeMode) => {
+    try {
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, mode);
+    } catch (error) {
+      console.error('Error saving theme mode:', error);
+    }
+  };
+
+  // Toggle between light and dark themes
+  const toggleTheme = () => {
+    const newMode: ThemeMode = themeMode === 'light' ? 'dark' : 'light';
+    setThemeModeState(newMode);
+    saveThemeMode(newMode);
+  };
+
+  // Set specific theme mode
+  const setThemeMode = (mode: ThemeMode) => {
+    setThemeModeState(mode);
+    saveThemeMode(mode);
+  };
+
+  // Set custom theme
+  const setCustomTheme = (customThemeData: Partial<Theme>) => {
+    setCustomThemeState(customThemeData);
+  };
+
+  // Listen for system appearance changes
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+      if (themeMode === 'system') {
+        const newTheme = getTheme(colorScheme);
+        setTheme(newTheme);
+      }
+    });
+
+    return () => subscription?.remove();
+  }, [themeMode]);
+
+  const contextValue: ThemeContextType = {
+    theme,
+    themeMode,
+    isDark: theme.isDark,
+    toggleTheme,
+    setThemeMode,
+    setCustomTheme,
+  };
+
+  return (
+    <ThemeContext.Provider value={contextValue}>
+      {children}
+    </ThemeContext.Provider>
+  );
 };
 
-const darkColors = {
-  primaryBrand: '#0A84FF', // Brighter blue for dark mode
-  accent: '#FF9F0A', // Brighter orange
-  secondaryAccent: '#30D158', // Brighter green
-
-  textPrimary: '#FFFFFF', // White for major text
-  textSecondary: '#EBEBF599', // Light gray for minor text (semi-transparent white)
-  textDisabled: '#EBEBF54D',
-  textOnPrimaryBrand: '#FFFFFF',
-
-  backgroundRoot: '#000000', // True black or very dark gray for overall background
-  backgroundLight: '#1C1C1E', // Dark gray for cards, headers, tab bars
-  backgroundSecondary: '#2C2C2E', // Slightly lighter dark gray
-  backgroundDark: '#FFFFFF', // For elements needing light background in dark theme (rare)
-
-  border: '#38383A', // Dark mode border color
-  separator: '#3A3A3C', // Dark mode list separators
-
-  success: '#32D74B',
-  warning: '#FFD60A', // Often remains similar
-  error: '#FF453A', // Often remains similar
-
-  // Status Bar
-  statusBar: 'light-content',
+// Custom hook to use theme context
+export const useTheme = (): ThemeContextType => {
+  const context = useContext(ThemeContext);
+  if (context === undefined) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  return context;
 };
 
-// --- Exported THEME object ---
-// This will be a Proxy or a function that dynamically returns colors
-// For simplicity and direct hook usage, we'll encourage using a hook to get the themed colors.
-
-// It's often better to create a hook that returns the current theme's color palette.
-export const useAppTheme = () => {
-  const { isDarkMode } = useInternalTheme(); // Use the hook from your ThemeContext
-  return isDarkMode ? darkColors : lightColors;
+// Hook to get just the theme object
+export const useThemeColors = () => {
+  const { theme } = useTheme();
+  return theme.colors;
 };
 
-// --- For convenience, you might still want to export the palettes directly if needed elsewhere ---
-export const LightThemePalette = lightColors;
-export const DarkThemePalette = darkColors;
-
-// --- Example of a more structured THEME object (if you prefer this pattern) ---
-// This would be used INSTEAD of encouraging useAppTheme directly everywhere for colors
-// Note: This specific `DYNAMIC_THEME` object is NOT dynamic by itself.
-// You'd use it like: `const currentDynamicColors = isDarkMode ? DYNAMIC_THEME.dark : DYNAMIC_THEME.light;`
-// Or, more robustly, this object would be constructed inside a component using the useAppTheme hook.
-
-/*
-export const DYNAMIC_THEME = {
-  light: lightColors,
-  dark: darkColors,
-  // You could add spacing, typography, etc. here if they also change with theme
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
-  },
-  typography: {
-    fontFamilyRegular: 'System', // Replace with your font
-    fontFamilyBold: 'System',    // Replace with your font
-    // ... other font styles
-  },
+// Hook to get theme spacing
+export const useThemeSpacing = () => {
+  const { theme } = useTheme();
+  return theme.spacing;
 };
-*/
 
-// What was previously referred to as `THEME` in your other files
-// should now be replaced by colors obtained from `useAppTheme()`.
-// For example, instead of `THEME.PRIMARY_BRAND_COLOR`, you'd do:
-// `const appTheme = useAppTheme();`
-// `... color: appTheme.primaryBrand ...`
+// Hook to get theme typography
+export const useThemeTypography = () => {
+  const { theme } = useTheme();
+  return theme.typography;
+};
 
-// If you absolutely need a globally accessible (but non-reactive) default,
-// you might export one of the palettes, but this is NOT recommended for dynamic UI.
-// export const DEFAULT_LIGHT_THEME_FOR_NON_REACTIVE_PARTS = lightColors;
+// Hook to get theme border radius
+export const useThemeBorderRadius = () => {
+  const { theme } = useTheme();
+  return theme.borderRadius;
+};
+
+// Hook to get theme shadows
+export const useThemeShadows = () => {
+  const { theme } = useTheme();
+  return theme.shadows;
+};
+
+// Helper function to add alpha to colors (updated to use current theme)
+export const useAddAlpha = () => {
+  const { theme } = useTheme();
+  
+  return (color: string, alpha: number): string => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+};
