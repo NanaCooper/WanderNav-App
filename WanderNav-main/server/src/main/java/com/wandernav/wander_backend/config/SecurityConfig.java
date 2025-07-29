@@ -33,6 +33,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/search/**").permitAll() // Allow search endpoints
                 .requestMatchers("/api/weather/**").permitAll() // Allow weather endpoints
                 .requestMatchers("/api/locations/**").permitAll() // Allow location endpoints
+                .requestMatchers("/actuator/**").permitAll() // Allow actuator endpoints (health, etc)
                 .anyRequest().authenticated() // Require auth for other endpoints
             )
             .sessionManagement(session -> session
