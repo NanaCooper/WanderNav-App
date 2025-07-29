@@ -6,7 +6,7 @@ spring:
   # MongoDB Configuration
   data:
     mongodb:
-      uri: "mongodb://mongo:CNJHRbHdzUZFhSWwKxesTNwQTHgGmZvh@nozomi.proxy.rlwy.net:26637/wandernav"
+      uri: "mongodb://mongo:CNJHRbHdzUZFhSWwKxesTNwQTHgGmZvh@nozomi.proxy.rlwy.net:26637/test"
   
   # Security Configuration
   security:
